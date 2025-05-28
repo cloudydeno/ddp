@@ -1,0 +1,19 @@
+{
+  "name": "@cloudydeno/ddp",
+  "version": "0.1.0",
+  "license": "MIT",
+  "imports": {
+    "@cloudydeno/ejson": "jsr:@cloudydeno/ejson@^0.1",
+    "@cloudydeno/opentelemetry": "jsr:@cloudydeno/opentelemetry@^0.10"
+  },
+  "exports": {
+    "./random": "./src/lib/random.ts",
+    "./client": "./src/client/mod.ts",
+    "./server": "./src/server/mod.ts",
+    "./server/otlp": "./src/server/otlp.ts"
+  },
+  "nodeModulesDir": "none",
+  "exclude": [
+    ".github"
+  ]
+}

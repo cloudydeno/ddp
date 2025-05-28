@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  # events to dryrun:
+  pull_request: {}
+  # events to publish:
+  push:
+    branches: [ main ]
+
+jobs:
+
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    name: Check w/ ${{ matrix.deno-version }}
+    strategy:
+      matrix:
+        deno-version:
+        - v2.3
+        - canary
+      fail-fast: false # run each branch to completion
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Use Deno ${{ matrix.deno-version }}
+      uses: denoland/setup-deno@v2
+      with:
+        deno-version: ${{ matrix.deno-version }}
+
+    - name: Check JSR publication
+      run: time deno publish --dry-run --allow-dirty
+
+  publish-jsr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    name: Publish to JSR
+    needs: check
+    if: github.event_name == 'push'
+
+    steps:
+    - uses: denoland/setup-deno@v2
+
+    - uses: actions/checkout@v4
+
+    - name: Publish now
+      run: deno publish
