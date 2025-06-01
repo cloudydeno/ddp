@@ -206,8 +206,23 @@ export abstract class DdpSocketInner {
   clientAddress = 'string';
   httpHeaders: Record<string, string> = {};
 
-  public readonly universalSub: Map<string, DdpSocketSubscription> = new Map;
+  public readonly universalSubs: Set<DdpSocketSubscription> = new Set;
   public readonly namedSubs: Map<string, DdpSocketSubscription> = new Map;
+
+  async startDefaultSub(label: string, handler: PublicationHandler) {
+    const subscription = new DdpSocketSubscription(this, '');
+    this.universalSubs.add(subscription);
+    await subtracer.startActiveSpan(label, {
+      kind: SpanKind.SERVER,
+      attributes: {
+        'rpc.system': 'ddp-publish',
+        'rpc.method': label,
+      },
+    }, (span) => Promise
+      .resolve(handler(subscription, []))
+      .catch(err => subscription.error(err))
+      .finally(() => span.end()));
+  }
 
   async handleClientPacket(pkt: TracedClientSentPacket) {
     const ctx = propagation.extract(ROOT_CONTEXT, pkt.baggage ?? {}, BaggageGetter);
@@ -215,7 +230,7 @@ export abstract class DdpSocketInner {
     switch (pkt.msg) {
       case 'connect':
         if (pkt.version != '1') {
-          console.error(`WARN: refused connetion for ddp version ${pkt.version}`);
+          console.error(`WARN: refused connection for ddp version ${pkt.version}`);
           // don't care about the client's supported versions, either will work or won't
           this.send([{
             msg: 'failed',
@@ -224,7 +239,7 @@ export abstract class DdpSocketInner {
           break;
         }
         this.send([{
-          msg: "connected",
+          msg: 'connected',
           session: this.id,
         }]);
         this.ddpInterface.registerSocket(this);
@@ -232,7 +247,8 @@ export abstract class DdpSocketInner {
 
       case 'ping':
         this.send([{
-          msg: "pong",
+          msg: 'pong',
+          id: pkt.id,
         }]);
         break;
       case 'sub': {
@@ -265,14 +281,14 @@ export abstract class DdpSocketInner {
         }, ctx, (span) => this.ddpInterface
           .callMethod(this, pkt.method, pkt.params, pkt.randomSeed ? new RandomStream(pkt.randomSeed) : null)
           .then<ServerSentPacket[],ServerSentPacket[]>(x => ([{
-            msg: "result",
+            msg: 'result',
             id: pkt.id,
             result: x,
           }, {
-            msg: "updated",
+            msg: 'updated',
             methods: [pkt.id],
           }]), err => (console.error('method error:', err), [{
-            msg: "result",
+            msg: 'result',
             id: pkt.id,
             error: {
               error: err.message,

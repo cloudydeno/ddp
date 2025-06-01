@@ -48,7 +48,12 @@ export class DDPClient {
     // deno-lint-ignore no-explicit-any
     ok: (result: any) => void;
     fail: (error: Error) => void;
-    span: Span | null;
+    span?: Span | null;
+  }> = new Map;
+  private readonly pendingPings: Map<string, {
+    ok: () => void;
+    fail: (error: Error) => void;
+    span?: Span | null;
   }> = new Map;
   private readonly pendingSubs: Map<string, {
     ok: () => void;
@@ -94,6 +99,17 @@ export class DDPClient {
         method: name,
         params: params,
       }, span ? trace.setSpan(context.active(), span) : context.active()).catch(fail);
+    });
+  }
+
+  async ping() {
+    const pingId = Math.random().toString(16).slice(2);
+    await new Promise<void>((ok, fail) => {
+      this.pendingPings.set(pingId, {ok, fail});
+      this.sendMessage({
+        msg: 'ping',
+        id: pingId,
+      }).catch(fail);
     });
   }
 
@@ -199,8 +215,20 @@ export class DDPClient {
       case 'ping':
         await this.sendMessage({ msg: 'pong', id: packet.id });
         break;
-      case 'pong':
-        break;
+      case 'pong':{
+        if (!packet.id) {
+          for (const ping of this.pendingPings.values()) {
+            ping.ok();
+          }
+          this.pendingPings.clear();
+          break;
+        }
+        const handlers = this.pendingPings.get(packet.id);
+        if (!handlers) break; // warn?
+        this.pendingPings.delete(packet.id);
+        handlers.ok();
+        handlers.span?.end();
+      } break;
       case 'error':
         console.error('DDP error:', packet);
         throw new Error(`DDP error: ${packet.reason ?? '(no reason)'}`);
