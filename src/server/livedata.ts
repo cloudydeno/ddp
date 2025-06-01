@@ -43,7 +43,7 @@
 //   }));
 // }
 
-import type { OutboundSubscription, ServerSentPacket } from "../../shared/ddp/types.ts";
+import type { OutboundSubscription, ServerSentPacket } from "lib/types.ts";
 
 export type SubscriptionEvent =
 | (ServerSentPacket & {msg: 'added' | 'changed' | 'removed'})

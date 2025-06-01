@@ -2,8 +2,10 @@ import { assert } from 'jsr:@std/assert@1.0.13/assert';
 import { assertEquals } from 'jsr:@std/assert@1.0.13/equals';
 import { assertObjectMatch } from 'jsr:@std/assert@1.0.13/object-match';
 
-import { DdpInterface, DdpStreamSession } from '../src/server/mod.ts';
 import { DDPClient } from '../src/client/mod.ts';
+
+import { DdpInterface } from '../src/server/interface.ts';
+import { DdpStreamSession } from "../src/server/session.ts";
 
 async function setupClientFor(serverIface: DdpInterface) {
 

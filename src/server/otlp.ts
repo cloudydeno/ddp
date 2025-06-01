@@ -1,4 +1,4 @@
-import type { DdpInterface } from "./mod.ts";
+import type { DdpInterface } from "./interface.ts";
 
 // TODO: mutate payloads with server-supplied attributes
 

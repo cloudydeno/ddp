@@ -8,7 +8,7 @@ const clientTracer = trace.getTracer('ddp.client');
 const methodTracer = trace.getTracer('ddp.method');
 const subTracer = trace.getTracer('ddp.subscription');
 
-import type { ClientSentPacket, ServerSentPacket } from "../lib/types.ts";
+import type { ClientSentPacket, ServerSentPacket } from "lib/types.ts";
 import { LiveCollection, CollectionApi } from "./collection.ts";
 import type { Collection } from "./types.ts";
 // import { DDPCollection, MongoCollection } from "./ddp-livedata";
@@ -90,7 +90,7 @@ export class DDPClient {
       },
     });
 
-    console.log('--> call', name);
+    // console.debug('--> call', name);
     return await new Promise<T>((ok, fail) => {
       this.pendingMethods.set(methodId, {ok, fail, span});
       this.sendMessage({
@@ -128,7 +128,7 @@ export class DDPClient {
       },
     });
 
-    console.log('--> sub', name, params);
+    // console.debug('--> sub', name, params);
     const readyPromise = new Promise<void>((ok, fail) => {
       this.pendingSubs.set(subId, {ok, fail, span});
       this.sendMessage({

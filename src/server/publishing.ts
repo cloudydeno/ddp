@@ -1,4 +1,4 @@
-import type { DocumentFields, ServerSentPacket } from "../lib/types.ts";
+import type { DocumentFields, ServerSentPacket } from "lib/types.ts";
 
 export interface PresentedDocument {
   // collection: string;
