@@ -22,7 +22,7 @@ const subtracer = trace.getTracer('ddp.subscription');
 export class DdpInterface {
   private readonly connectionCbs: Set<ConnectionHandler> = new Set;
   private readonly methods: Map<string, MethodHandler> = new Map;
-  private readonly defaultPubs: Set<PublicationHandler> = new Set;
+  private readonly defaultPubs: Array<{ label: string, handler: PublicationHandler }> = [];
   private readonly publications: Map<string, PublicationHandler> = new Map;
   /** @deprecated TODO: This doesn't appear to be used for anything */
   private readonly openSockets: Set<DdpSocketInner> = new Set;
@@ -39,12 +39,11 @@ export class DdpInterface {
   addMethod(name: string, handler: MethodHandler): void {
     this.methods.set(name, handler);
   }
-  addPublication(name: string | null, handler: PublicationHandler): void {
-    if (name == null) {
-      this.defaultPubs.add(handler);
-    } else {
-      this.publications.set(name, handler);
-    }
+  addPublication(name: string, handler: PublicationHandler): void {
+    this.publications.set(name, handler);
+  }
+  addDefaultPublication(label: string, handler: PublicationHandler): void {
+    this.defaultPubs.push({ label, handler });
   }
 
   registerSocket(socket: DdpSocketInner): void {
@@ -59,9 +58,8 @@ export class DdpInterface {
     //   .finally(() => {
     //     this.openSockets.delete(socket);
     //   });
-    for (const defaultPub of this.defaultPubs) {
-      // TODO: universal publications
-      // defaultPub(socket, []);
+    for (const pub of this.defaultPubs) {
+      socket.startDefaultSub(pub.label, pub.handler);
     }
   }
 
@@ -104,11 +102,13 @@ export class DdpSocketSubscription implements OutboundSubscription {
     for (const collection of this.connection.collections.values()) {
       collection.dropSub(this.subId);
     }
-    this.connection.send([{
-      msg: 'nosub',
-      id: this.subId,
-      error,
-    }]);
+    if (this.subId) {
+      this.connection.send([{
+        msg: 'nosub',
+        id: this.subId,
+        error,
+      }]);
+    }
     this.stopCtlr.abort(error ? 'Subscription error' : 'Stop requested');
   }
   public onStop(callback: () => void) {
@@ -145,6 +145,7 @@ export class DdpSocketSubscription implements OutboundSubscription {
   }
 
   public ready(): void {
+    if (!this.subId) return; // universal subs
     this.connection.send([{
       msg: 'ready',
       subs: [this.subId],
