@@ -107,7 +107,7 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     throw new Error("Method not implemented.");
   }
   fetchAsync(): Promise<T[]> {
-    throw new Error("Method not implemented.");
+    return Promise.resolve(this.fetch());
   }
   forEachAsync(callback: (doc: T, index: number, cursor: Cursor<T>) => void, thisArg?: any): Promise<void> {
     throw new Error("Method not implemented.");

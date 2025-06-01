@@ -34,7 +34,7 @@ export class DdpSubscription {
 
 export class DDPClient {
   constructor(
-    _wss: WebSocketStream,
+    _wss: unknown, // TODO: remove unless we want WebSocketStream
     private readonly readable: ReadableStream<string>,
     private readonly writable: WritableStream<string>,
     public readonly encapsulation: 'sockjs' | 'raw',
@@ -125,6 +125,43 @@ export class DDPClient {
     return new DdpSubscription(this, subId, readyPromise);
   }
 
+  async runHandshake(): Promise<void> {
+    const setupReader = this.readable.getReader() as ReadableStreamDefaultReader<string>;
+
+    const handshakeSpan = clientTracer.startSpan('DDP handshake');
+    try {
+      await this.sendMessage({
+        msg: "connect",
+        version: "1",
+        support: ["1"],
+      });
+
+      if (this.encapsulation == 'sockjs') {
+        {
+          const {value} = await setupReader.read();
+          if (value !== 'o') throw new Error(`Unexpected banner: ${JSON.stringify(value)}`)
+        }
+
+        // TODO: the parsing should be handled by a transformstream, read from that instead
+        const {value} = await setupReader.read();
+        if (value?.[0] !== 'a') throw new Error(`Unexpected connect resp: ${JSON.stringify(value)}`)
+        const packet = EJSON.parse(JSON.parse(value.slice(1))[0]) as ServerSentPacket;
+        if (packet.msg !== 'connected') throw new Error(`Unexpected connect msg: ${JSON.stringify(packet)}`);
+        // const session = packet.session as string;
+
+      } else {
+        const {value} = await setupReader.read();
+        if (value?.[0] !== '{') throw new Error(`Unexpected connect resp: ${JSON.stringify(value)}`)
+        const packet = EJSON.parse(value) as ServerSentPacket;
+        if (packet.msg !== 'connected') throw new Error(`Unexpected connect msg: ${JSON.stringify(packet)}`);
+      }
+    } finally {
+      handshakeSpan.end();
+    }
+
+    setupReader.releaseLock();
+  }
+
   async runInboundLoop(): Promise<void> {
     if (this.encapsulation == 'raw') {
       for await (const chunk of this.readable) {
@@ -157,6 +194,7 @@ export class DDPClient {
   }
 
   async handlePacket(packet: ServerSentPacket): Promise<void> {
+    // console.debug('C<-', Deno.inspect(packet, { depth: 1 }));
     switch (packet.msg) {
       case 'ping':
         await this.sendMessage({ msg: 'pong', id: packet.id });
@@ -254,6 +292,8 @@ export class DDPClient {
     }
     const fullPacket = { ...packet, baggage };
 
+    // console.debug('C->', Deno.inspect(packet, { depth: 1 }));
+
     if (this.encapsulation == 'raw') {
       await this.writer.write(EJSON.stringify(fullPacket));
     } else {
@@ -277,43 +317,9 @@ export class DDPClient {
     const connectSpan = clientTracer.startSpan('DDP connection');
     const {readable, writable} = await wss.opened.finally(() => connectSpan.end());
 
-    // TODO: typecheck
+    // TODO: typecheck readable
     const ddp = new this(wss, readable as ReadableStream<string>, writable, encapsulation);
-
-    const setupReader = readable.getReader() as ReadableStreamDefaultReader<string>;
-
-    const handshakeSpan = clientTracer.startSpan('DDP handshake');
-    try {
-      await ddp.sendMessage({
-        msg: "connect",
-        version: "1",
-        support: ["1"],
-      });
-
-      if (encapsulation == 'sockjs') {
-        {
-          const {value} = await setupReader.read();
-          if (value !== 'o') throw new Error(`Unexpected banner: ${JSON.stringify(value)}`)
-        }
-
-        // TODO: the parsing should be handled by a transformstream, read from that instead
-        const {value} = await setupReader.read();
-        if (value?.[0] !== 'a') throw new Error(`Unexpected connect resp: ${JSON.stringify(value)}`)
-        const packet = EJSON.parse(JSON.parse(value.slice(1))[0]) as ServerSentPacket;
-        if (packet.msg !== 'connected') throw new Error(`Unexpected connect msg: ${JSON.stringify(packet)}`);
-        // const session = packet.session as string;
-
-      } else {
-        const {value} = await setupReader.read();
-        if (value?.[0] !== '{') throw new Error(`Unexpected connect resp: ${JSON.stringify(value)}`)
-        const packet = EJSON.parse(value) as ServerSentPacket;
-        if (packet.msg !== 'connected') throw new Error(`Unexpected connect msg: ${JSON.stringify(packet)}`);
-      }
-    } finally {
-      handshakeSpan.end();
-    }
-
-    setupReader.releaseLock();
+    await ddp.runHandshake();
     ddp.runInboundLoop(); // throw away the promise (it's fine)
     return ddp;
   }

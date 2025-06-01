@@ -31,6 +31,9 @@ jobs:
       with:
         deno-version: ${{ matrix.deno-version }}
 
+    - name: Run tests
+      run: time deno test
+
     - name: Check JSR publication
       run: time deno publish --dry-run --allow-dirty
 
