@@ -1,8 +1,5 @@
 import { EJSON, type EJSONableProperty } from "@cloudydeno/ejson";
-// import { EJSON, type EJSONableProperty } from "jsr:@cloudydeno/ejson@0.1.1";
-
-import { trace, SpanKind, SpanStatusCode, Span, context, propagation, Context } from "@cloudydeno/opentelemetry/pkg/api";
-// import { trace, SpanKind, SpanStatusCode, Span, context, propagation, Context } from "jsr:@cloudydeno/opentelemetry@0.10.1/pkg/api";
+import { trace, SpanKind, SpanStatusCode, type Span, context, propagation, type Context } from "@cloudydeno/opentelemetry/pkg/api";
 
 const clientTracer = trace.getTracer('ddp.client');
 const methodTracer = trace.getTracer('ddp.method');
@@ -113,7 +110,7 @@ export class DDPClient {
     });
   }
 
-  subscribe(name: string, params: EJSONableProperty[]): DdpSubscription {
+  subscribe(name: string, params: EJSONableProperty[] = []): DdpSubscription {
     const subId = Math.random().toString(16).slice(2);
     const span = subTracer.startSpan(name, {
       kind: SpanKind.CLIENT,
@@ -353,7 +350,7 @@ export class DDPClient {
   }
 }
 
-// function handleDocumentPacket(coll: LiveCollection, packet: ServerSentPacket & { msg: "added" | "changed" | "removed" | "addedBefore" | "movedBefore"}) {
+// function handleDocumentPacket(coll: LiveCollection, packet: ServerSentDocumentPacket) {
 //   switch (packet.msg) {
 //     case 'added': {
 //       coll.addDocument(packet.id, packet.fields ?? {});

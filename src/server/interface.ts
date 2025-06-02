@@ -3,7 +3,7 @@ import type { EJSONableProperty } from "@cloudydeno/ejson";
 import type { RandomStream } from "lib/random.ts";
 import type { DdpSession } from "./session.ts";
 import type { DdpSessionSubscription } from "./subscription.ts";
-import type { ConnectionHandler, MethodHandler, PublicationHandler } from "./types.ts";
+import type { ConnectionHandler, MethodHandler, PublicationHandler, PublishStream } from "./types.ts";
 
 export class DdpInterface {
   private readonly connectionCbs: Set<ConnectionHandler> = new Set;
@@ -57,7 +57,7 @@ export class DdpInterface {
     return await handler(socket, params, random);
   }
 
-  async callSubscribe(sub: DdpSessionSubscription, name: string, params: EJSONableProperty[]): Promise<void> {
+  async callSubscribe(sub: DdpSessionSubscription, name: string, params: EJSONableProperty[]): Promise<void | PublishStream[]> {
     const handler = this.publications.get(name);
     if (!handler) {
       throw new Error(`unimplemented sub: "${name}"`);

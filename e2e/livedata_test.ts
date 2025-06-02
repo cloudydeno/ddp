@@ -6,6 +6,7 @@ import { DDPClient } from '../src/client/mod.ts';
 
 import { DdpInterface } from '../src/server/interface.ts';
 import { DdpStreamSession } from "../src/server/session.ts";
+import { ServerSentSubscriptionPacket } from "lib/types.ts";
 
 async function setupClientFor(serverIface: DdpInterface) {
 
@@ -57,6 +58,7 @@ Deno.test('basic subscribe', {
 
   const sub = session.client.subscribe('increments', [5]);
   await sub.ready;
+
   const collection = session.client.getCollection('sequence');
   const items = await collection.find().fetchAsync();
 
@@ -81,4 +83,42 @@ Deno.test('universal publish', {
   const item = collection.findOne({ _id: 'main' });
   assert(item);
   assertObjectMatch(item, { name: 'e2e tests' });
+});
+
+Deno.test('cursor subscribe', {
+  permissions: 'none',
+}, async () => {
+
+  const serverIface = new DdpInterface();
+  serverIface.addPublication('all', (sub) => {
+    return [
+      ReadableStream.from<ServerSentSubscriptionPacket>([
+        {msg: 'added',collection:'numbers',id:'1',fields:{}},
+        {msg: 'ready',subs:[]},
+      ]),
+      ReadableStream.from<ServerSentSubscriptionPacket>([
+        {msg: 'added',collection:'letters',id:'a',fields:{}},
+        {msg: 'ready',subs:[]},
+      ]),
+    ];
+  });
+
+  using session = await setupClientFor(serverIface);
+
+  const sub = session.client.subscribe('all');
+  await sub.ready;
+
+  {
+    const collection = session.client.getCollection('numbers');
+    const items = await collection.find().fetchAsync();
+    assertEquals(items.length, 1);
+    assertObjectMatch(items[0], { _id: "1" });
+  }
+
+  {
+    const collection = session.client.getCollection('letters');
+    const items = await collection.find().fetchAsync();
+    assertEquals(items.length, 1);
+    assertObjectMatch(items[0], { _id: "a" });
+  }
 });

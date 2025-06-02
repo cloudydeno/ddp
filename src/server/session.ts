@@ -2,10 +2,10 @@ import { EJSON } from "@cloudydeno/ejson";
 import { SpanKind, propagation, ROOT_CONTEXT, trace, type TextMapGetter, Attributes } from "@cloudydeno/opentelemetry/pkg/api";
 
 import { RandomStream } from "lib/random.ts";
-import type { ServerSentPacket } from "lib/types.ts";
+import type { OutboundSubscription, ServerSentPacket } from "lib/types.ts";
 import type { DdpInterface } from "./interface.ts";
 import { PresentedCollection } from "./publishing.ts";
-import type { PublicationHandler, TracedClientSentPacket } from "./types.ts";
+import type { PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
 import { DdpSessionSubscription } from "./subscription.ts";
 
 const methodtracer = trace.getTracer('ddp.method');
@@ -121,6 +121,11 @@ export abstract class DdpSession {
           },
         }, ctx, (span) => this.ddpInterface
           .callSubscribe(subscription, pkt.name, pkt.params)
+          .then(result => {
+            if (Array.isArray(result)) {
+              emitToSub(subscription, result);
+            }
+          })
           .catch(err => subscription.error(err))
           .finally(() => span.end()));
       } break;
@@ -264,4 +269,34 @@ export class DdpStreamSession extends DdpSession {
       await this.sendWriter.write(EJSON.stringify(pkt));
     }
   }
+}
+
+function emitToSub(
+  sub: OutboundSubscription,
+  sources: Array<PublishStream>,
+) {
+  let unreadyCount = sources.length;
+  sources.map(source => source.pipeTo(new WritableStream({
+    write(packet) {
+      switch (packet.msg) {
+        case 'ready':
+          if (--unreadyCount == 0) {
+            sub.ready();
+          }
+          break;
+        case 'nosub':
+          sub.stop(packet.error);
+          break;
+        case 'added':
+          sub.added(packet.collection, packet.id, packet.fields ?? {});
+          break;
+        case 'changed':
+          sub.changed(packet.collection, packet.id, packet.fields ?? {});
+          break;
+        case 'removed':
+          sub.removed(packet.collection, packet.id);
+          break;
+      }
+    },
+  })));
 }

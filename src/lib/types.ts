@@ -34,36 +34,7 @@ export interface MeteorError {
 
 export type DocumentFields = Record<string, EJSONableProperty>;
 
-export type ServerSentPacket = {
-  msg: 'ping' | 'pong';
-  id?: string;
-} | {
-  msg: 'connected';
-  session: string;
-} | {
-  msg: 'failed';
-  version: string;
-} | {
-  msg: 'ready';
-  subs: string[];
-} | {
-  msg: 'nosub';
-  id: string;
-  error?: MeteorError;
-} | {
-  msg: 'updated';
-  methods: string[];
-} | {
-  msg: 'result';
-  id: string;
-  result?: EJSONableProperty;
-  error?: undefined;
-} | {
-  msg: 'result';
-  id: string;
-  result?: undefined;
-  error: MeteorError;
-} | {
+export type ServerSentDocumentPacket = {
   msg: 'added';
   collection: string;
   id: string;
@@ -89,13 +60,52 @@ export type ServerSentPacket = {
   collection: string;
   id: string;
   before: string | null;
+};
+
+export type ServerSentSubscriptionPacket = {
+  msg: 'ready';
+  subs: string[];
+} | {
+  msg: 'nosub';
+  id: string;
+  error?: MeteorError;
+} | ServerSentDocumentPacket;
+
+export type ServerSentMethodPacket = {
+  msg: 'updated';
+  methods: string[];
+} | {
+  msg: 'result';
+  id: string;
+  result?: EJSONableProperty;
+  error?: undefined;
+} | {
+  msg: 'result';
+  id: string;
+  result?: undefined;
+  error: MeteorError;
+};
+
+export type ServerSentLifecyclePacket = {
+  msg: 'ping' | 'pong';
+  id?: string;
+} | {
+  msg: 'connected';
+  session: string;
+} | {
+  msg: 'failed';
+  version: string;
 } | {
   msg: 'error';
   reason: string;
   offendingMessage?: ClientSentPacket;
 };
 
-export type DocumentPacket = ServerSentPacket & {msg: 'added' | 'changed' | 'removed' | 'addedBefore' | 'movedBefore'};
+export type ServerSentPacket =
+| ServerSentLifecyclePacket
+| ServerSentSubscriptionPacket
+| ServerSentMethodPacket
+;
 
 export interface OutboundSubscription {
   stop(error?: MeteorError): void;
@@ -108,7 +118,7 @@ export interface OutboundSubscription {
   changed(collection: string, id: string, fields: Record<string,EJSONableProperty>): void;
   removed(collection: string, id: string): void;
 
-  error(error: Error): void;
+  error(error: Error ): void;
   ready(): void;
 
   connection: ClientConnection;
