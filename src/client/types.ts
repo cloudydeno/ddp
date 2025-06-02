@@ -1,4 +1,4 @@
-import { type EJSONableProperty } from "@cloudydeno/ejson";
+import type { EJSONableProperty } from "@cloudydeno/ejson";
 export type FieldValue = EJSONableProperty;
 export type DocumentFields = Record<string, FieldValue>;
 

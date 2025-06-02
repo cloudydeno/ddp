@@ -1,12 +1,12 @@
 import { EJSON } from "@cloudydeno/ejson";
-import { SpanKind, propagation, ROOT_CONTEXT, trace, type TextMapGetter } from "@cloudydeno/opentelemetry/pkg/api";
+import { SpanKind, propagation, ROOT_CONTEXT, trace, type TextMapGetter, Attributes } from "@cloudydeno/opentelemetry/pkg/api";
 
 import { RandomStream } from "lib/random.ts";
 import type { ServerSentPacket } from "lib/types.ts";
 import type { DdpInterface } from "./interface.ts";
 import { PresentedCollection } from "./publishing.ts";
 import type { PublicationHandler, TracedClientSentPacket } from "./types.ts";
-import { DdpSocketSubscription } from "./subscription.ts";
+import { DdpSessionSubscription } from "./subscription.ts";
 
 const methodtracer = trace.getTracer('ddp.method');
 const subtracer = trace.getTracer('ddp.subscription');
@@ -33,6 +33,7 @@ export abstract class DdpSession {
 
   constructor (
     private readonly ddpInterface: DdpInterface,
+    protected readonly telemetryAttrs: Attributes,
   ) {
     this.closeCtlr.signal.addEventListener('abort', () => {
       for (const ctlr of this.namedSubs.values()) {
@@ -41,16 +42,8 @@ export abstract class DdpSession {
       this.namedSubs.clear();
     });
 
-    // this.telemetryAttrs = {
-      // 'rpc.ddp.session': this.id,
-      // 'rpc.ddp.version': this.version,
-    // 'meteor.user_id': this.userId,
-      // 'net.peer.name': this.socket.remoteAddress,
-      // 'net.peer.port': this.socket.remotePort,
-      // 'net.host.name': this.socket.address.address,
-      // 'net.host.port': this.socket.address.port,
-      // 'net.sock.family': ({'IPv4':'inet','IPv6':'inet6'})[this.socket.address.family] ?? this.socket.address.family,
-    // }
+    this.telemetryAttrs['rpc.ddp.session'] = this.id;
+    // this.telemetryAttrs['rpc.ddp.version'] = this.version;
   }
   // telemetryAttrs: Attributes;
   public closePromise: Promise<void> | null = null;
@@ -71,11 +64,11 @@ export abstract class DdpSession {
   clientAddress = 'string';
   httpHeaders: Record<string, string> = {};
 
-  public readonly universalSubs: Set<DdpSocketSubscription> = new Set;
-  public readonly namedSubs: Map<string, DdpSocketSubscription> = new Map;
+  public readonly universalSubs: Set<DdpSessionSubscription> = new Set;
+  public readonly namedSubs: Map<string, DdpSessionSubscription> = new Map;
 
   async startDefaultSub(label: string, handler: PublicationHandler) {
-    const subscription = new DdpSocketSubscription(this, '');
+    const subscription = new DdpSessionSubscription(this, '');
     this.universalSubs.add(subscription);
     await subtracer.startActiveSpan(label, {
       kind: SpanKind.SERVER,
@@ -117,7 +110,7 @@ export abstract class DdpSession {
         }]);
         break;
       case 'sub': {
-        const subscription = new DdpSocketSubscription(this, pkt.id);
+        const subscription = new DdpSessionSubscription(this, pkt.id);
         this.namedSubs.set(pkt.id, subscription);
         await subtracer.startActiveSpan(pkt.name, {
           kind: SpanKind.SERVER,
@@ -178,13 +171,18 @@ export abstract class DdpSession {
 // TODO: rename DdpWebSocketSession
 export class DdpSocketSession extends DdpSession {
 
-
   constructor (
     private readonly socket: WebSocket,
     ddpInterface: DdpInterface,
     public readonly encapsulation: 'sockjs' | 'raw',
   ) {
-    super(ddpInterface);
+    super(ddpInterface, {
+      // 'net.peer.name': socket.remoteAddress,
+      // 'net.peer.port': socket.remotePort,
+      // 'net.host.name': socket.address.address,
+      // 'net.host.port': socket.address.port,
+      // 'net.sock.family': ({'IPv4':'inet','IPv6':'inet6'})[socket.address.family] ?? socket.address.family,
+    });
 
     socket.addEventListener('open', () => {
       // console.log('socket open')
@@ -213,17 +211,6 @@ export class DdpSocketSession extends DdpSession {
         console.log("WebSocket closed");
       });
     });
-
-    // this.telemetryAttrs = {
-      // 'rpc.ddp.session': this.id,
-      // 'rpc.ddp.version': this.version,
-    // 'meteor.user_id': this.userId,
-      // 'net.peer.name': this.socket.remoteAddress,
-      // 'net.peer.port': this.socket.remotePort,
-      // 'net.host.name': this.socket.address.address,
-      // 'net.host.port': this.socket.address.port,
-      // 'net.sock.family': ({'IPv4':'inet','IPv6':'inet6'})[this.socket.address.family] ?? this.socket.address.family,
-    // }
   }
 
   send(pkts: ServerSentPacket[]) {
@@ -247,7 +234,7 @@ export class DdpStreamSession extends DdpSession {
     readable: ReadableStream<string>,
     writable: WritableStream<string>,
   ) {
-    super(ddpInterface);
+    super(ddpInterface, {});
 
     this.closePromise = readable.pipeTo(new WritableStream({
       write: async (packet) => {

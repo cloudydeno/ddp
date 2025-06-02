@@ -1,7 +1,7 @@
 import type { OutboundSubscription, MeteorError, DocumentFields } from "lib/types.ts";
 import type { DdpSession } from "./session.ts";
 
-export class DdpSocketSubscription implements OutboundSubscription {
+export class DdpSessionSubscription implements OutboundSubscription {
   constructor(
     public readonly connection: DdpSession,
     private readonly subId: string,

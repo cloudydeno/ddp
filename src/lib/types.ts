@@ -111,7 +111,7 @@ export interface OutboundSubscription {
   error(error: Error): void;
   ready(): void;
 
-  // connection: MeteorConnection;
+  connection: ClientConnection;
   unblock(): void;
 }
 
