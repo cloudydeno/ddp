@@ -1,7 +1,7 @@
 import type { EJSONableProperty } from "@cloudydeno/ejson";
 
 import type { RandomStream } from "lib/random.ts";
-import type { ClientSentPacket, ServerSentSubscriptionPacket } from "lib/types.ts";
+import type { ClientSentPacket, MeteorError, ServerSentSubscriptionPacket } from "lib/types.ts";
 import type { DdpSession } from "./session.ts";
 import type { DdpSessionSubscription } from "./subscription.ts";
 
@@ -16,3 +16,29 @@ export type PublicationHandler = (socket: DdpSessionSubscription, params: EJSONa
 export type TracedClientSentPacket = ClientSentPacket & {
   baggage?: Record<string, string>;
 };
+
+export interface OutboundSubscription {
+  stop(error?: MeteorError): void;
+  onStop(callback: () => void): void;
+  // get signal(): AbortSignal;
+
+  get userId(): string | null;
+
+  added(collection: string, id: string, fields: Record<string,EJSONableProperty>): void;
+  changed(collection: string, id: string, fields: Record<string,EJSONableProperty>): void;
+  removed(collection: string, id: string): void;
+
+  error(error: Error): void;
+  ready(): void;
+
+  connection: ClientConnection;
+  unblock(): void;
+}
+
+export interface ClientConnection {
+  id: string;
+  close: () => void;
+  onClose: (callback: () => void) => void;
+  clientAddress: string;
+  httpHeaders: Record<string, string>;
+}

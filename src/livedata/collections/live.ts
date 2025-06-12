@@ -1,7 +1,7 @@
-import type { Collection, Cursor, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "./types.ts";
-import { checkMatch, makeReturnDoc } from "./document.ts";
+import type { Collection, Cursor, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "../types.ts";
+import { checkMatch, makeReturnDoc } from "../document.ts";
 
-export class LiveCollection {
+export abstract class LiveCollection {
   public readonly fields: Map<string,DocumentFields> = new Map;
 
   addDocument(id: string, fields: DocumentFields): void {
@@ -80,7 +80,7 @@ export class LiveCollection {
 
 }
 
-export class CollectionApi<T extends HasId> implements Collection<T> {
+export class LiveCollectionApi<T extends HasId> implements Collection<T> {
   constructor(
     public readonly liveColl: LiveCollection,
   ) {}
@@ -99,7 +99,7 @@ export class CollectionApi<T extends HasId> implements Collection<T> {
 
 class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
   constructor(
-    private readonly coll: CollectionApi<T>,
+    private readonly coll: LiveCollectionApi<T>,
     private readonly selector: Record<string,unknown>,
     private readonly opts: FindOpts,
   ) {}
@@ -167,7 +167,7 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
 
 class LiveQuery<T extends HasId> {
   constructor(
-    public readonly coll: CollectionApi<T>,
+    public readonly coll: LiveCollectionApi<T>,
     public readonly selector: Record<string,unknown>,
     public readonly opts: FindOpts,
     public readonly cbs: ObserveCallbacks<T>,

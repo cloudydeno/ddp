@@ -1,11 +1,11 @@
 import { EJSON } from "@cloudydeno/ejson";
-import { SpanKind, propagation, ROOT_CONTEXT, trace, type TextMapGetter, Attributes } from "@cloudydeno/opentelemetry/pkg/api";
+import { SpanKind, propagation, ROOT_CONTEXT, trace, type TextMapGetter, type Attributes } from "@cloudydeno/opentelemetry/pkg/api";
 
 import { RandomStream } from "lib/random.ts";
-import type { OutboundSubscription, ServerSentPacket } from "lib/types.ts";
+import type { ServerSentPacket } from "lib/types.ts";
 import type { DdpInterface } from "./interface.ts";
 import { PresentedCollection } from "./publishing.ts";
-import type { PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
+import type { OutboundSubscription, PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
 import { DdpSessionSubscription } from "./subscription.ts";
 
 const methodtracer = trace.getTracer('ddp.method');

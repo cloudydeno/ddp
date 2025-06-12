@@ -1,5 +1,6 @@
-import type { OutboundSubscription, MeteorError, DocumentFields } from "lib/types.ts";
+import type { MeteorError, DocumentFields } from "lib/types.ts";
 import type { DdpSession } from "./session.ts";
+import type { OutboundSubscription } from "./types.ts";
 
 export class DdpSessionSubscription implements OutboundSubscription {
   constructor(
