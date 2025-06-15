@@ -16,7 +16,7 @@ Deno.test('basic method', {
   });
 
   using session = setupClientFor(serverIface);
-  await session.connect();
+  await session.ping();
 
   const emojiResp = await session.client.callMethod('emoji', []);
   assertEquals(emojiResp, '👍');
@@ -36,7 +36,7 @@ Deno.test('basic subscribe', {
   });
 
   using session = setupClientFor(serverIface);
-  await session.connect();
+  await session.ping();
 
   const sub = session.client.subscribe('increments', [16]);
   await sub.ready;
@@ -60,7 +60,7 @@ Deno.test('universal publish', {
   });
 
   using session = setupClientFor(serverIface);
-  await session.connect();
+  await session.ping();
 
   const collection = session.client.getCollection('server-identity');
   await session.client.ping();

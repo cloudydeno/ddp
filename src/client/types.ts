@@ -18,6 +18,11 @@ export type ConnectionOptions = {
   encapsulation: 'sockjs' | 'raw';
   autoConnect: boolean;
   // autoReconnect?: boolean;
+  /** Custom callback to connect to the server, instead of WebSocketStream */
+  dialerFunc?: (url: string, encapsulation: 'sockjs' | 'raw') => Promise<{
+    readable: ReadableStream<string>,
+    writable: WritableStream<string>,
+  }>;
 }
 
 export interface DdpSubscription {

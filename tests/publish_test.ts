@@ -24,7 +24,7 @@ Deno.test('cursor subscribe', {
   });
 
   using session = setupClientFor(serverIface);
-  await session.connect();
+  await session.ping();
 
   const sub = session.client.subscribe('all');
   await sub.ready;

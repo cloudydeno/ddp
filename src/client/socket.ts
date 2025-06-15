@@ -1,12 +1,9 @@
 import { EJSON, type EJSONableProperty } from "@cloudydeno/ejson";
-import { trace, SpanKind, SpanStatusCode, type Span, context, propagation, type Context } from "@cloudydeno/opentelemetry/pkg/api";
+import { trace, SpanStatusCode, context, propagation, type Context } from "@cloudydeno/opentelemetry/pkg/api";
 
 import type { ClientSentPacket, ServerSentSubscriptionPacket, ServerSentPacket } from "lib/types.ts";
+import { type AsyncHandle, createAsyncHandle } from "./_async.ts";
 // import { openWebsocketStream, runHandshake } from "./_open.ts";
-
-// const clientTracer = trace.getTracer('ddp.client');
-const methodTracer = trace.getTracer('ddp.method');
-const subTracer = trace.getTracer('ddp.subscription');
 
 export class DdpClientSocket {
   constructor(
@@ -19,92 +16,79 @@ export class DdpClientSocket {
   }
   public writer: WritableStreamDefaultWriter<string> | null = null;
 
-  private readonly pendingMethods: Map<string, {
-    // deno-lint-ignore no-explicit-any
-    ok: (result: any) => void;
-    fail: (error: Error) => void;
-    span?: Span | null;
-  }> = new Map;
-  private readonly pendingPings: Map<string, {
-    ok: () => void;
-    fail: (error: Error) => void;
-    span?: Span | null;
-  }> = new Map;
-  private readonly pendingSubs: Map<string, {
-    ok: () => void;
-    fail: (error: Error) => void;
-    span: Span;
-  }> = new Map;
+  private readonly pendingMethods: Map<string, AsyncHandle<unknown>> = new Map;
+  private readonly pendingPings: Map<string, AsyncHandle<void>> = new Map;
+  private readonly pendingSubs: Map<string, AsyncHandle<void>> = new Map;
   private readonly readySubs: Set<string> = new Set;
 
-  async callMethod<T=EJSONableProperty>(methodId: string, name: string, params: EJSONableProperty[]): Promise<T> {
-    if (this.pendingMethods.has(methodId)) throw new Error(`BUG: duplicated methodId`);
+  shutdown() {
+    const reason = new Error(`DDP socket is shutting down`);
+    for (const method of this.pendingMethods.values()) {
+      method.fail(reason);
+    }
+    for (const ping of this.pendingPings.values()) {
+      ping.fail(reason);
+    }
+  }
 
-    const span = name == 'OTLP/v1/traces' ? null : methodTracer.startSpan(name, {
-      kind: SpanKind.CLIENT,
-      attributes: {
-        'rpc.system': 'ddp',
-        'rpc.method': name,
-        // 'rpc.ddp.session': this.id,
-        // 'rpc.ddp.version': this.version,
-        'rpc.ddp.method_id': methodId,
-        // 'ddp.user_id': this.userId ?? '',
-        // 'ddp.connection': this.connection?.id,
-      },
-    });
-
+  async callMethod<T=EJSONableProperty>(name: string, params: EJSONableProperty[]): Promise<T> {
+    const methodId = Math.random().toString(16).slice(2);
+    const async = createAsyncHandle<T>(null);
+    await this.sendMethod(async, methodId, name, params);
+    return await async.promise;
+  }
+  sendMethod<T=EJSONableProperty>(async: AsyncHandle<T>, methodId: string, name: string, params: EJSONableProperty[]): Promise<void> {
+    if (this.pendingMethods.has(methodId)) {
+      throw new Error(`BUG: duplicated methodId`);
+    }
     // console.debug('--> call', name);
-    return await new Promise<T>((ok, fail) => {
-      this.pendingMethods.set(methodId, {ok, fail, span});
-      this.sendMessage({
-        msg: 'method',
-        id: methodId,
-        method: name,
-        params: params,
-      }, span ? trace.setSpan(context.active(), span) : context.active()).catch(fail);
-    });
+    this.pendingMethods.set(methodId, async as AsyncHandle<unknown>);
+
+    return this.sendMessage({
+      msg: 'method',
+      id: methodId,
+      method: name,
+      params: params,
+    }, async.span
+      ? trace.setSpan(context.active(), async.span)
+      : context.active()
+    ).catch(async.fail);
   }
 
-  async ping(pingId: string) {
-    if (this.pendingPings.has(pingId)) throw new Error(`BUG: duplicated pingId`);
+  async ping() {
+    const pingId = Math.random().toString(16).slice(2);
+    const async = createAsyncHandle(null);
+    await this.sendPing(pingId, async);
+    await async.promise;
+  }
+  sendPing(pingId: string, async: AsyncHandle<void>): Promise<void> {
+    if (this.pendingPings.has(pingId)) {
+      throw new Error(`BUG: duplicated pingId`);
+    }
+    this.pendingPings.set(pingId, async);
 
-    await new Promise<void>((ok, fail) => {
-      this.pendingPings.set(pingId, {ok, fail});
-      this.sendMessage({
-        msg: 'ping',
-        id: pingId,
-      }).catch(fail);
-    });
+    return this.sendMessage({
+      msg: 'ping',
+      id: pingId,
+    }).catch(async.fail);
   }
 
-  subscribe(subId: string, name: string, params: EJSONableProperty[] = []): Promise<void> {
+  subscribe(subId: string, async: AsyncHandle<void>, name: string, params: EJSONableProperty[] = []): void {
     if (this.pendingSubs.has(subId)) throw new Error(`BUG: duplicated subId`);
     if (this.readySubs.has(subId)) throw new Error(`BUG: duplicated subId`);
 
-    const span = subTracer.startSpan(name, {
-      kind: SpanKind.CLIENT,
-      attributes: {
-        'rpc.system': 'ddp-subscribe',
-        'rpc.method': name,
-        // 'rpc.ddp.session': this.id,
-        // 'rpc.ddp.version': this.version,
-        'rpc.ddp.sub_id': subId,
-        // 'ddp.user_id': this.userId ?? '',
-        // 'ddp.connection': this.connection?.id,
-      },
-    });
+    const subContext = async.span
+      ? trace.setSpan(context.active(), async.span)
+      : context.active();
 
     // console.debug('--> sub', name, params);
-    const readyPromise = new Promise<void>((ok, fail) => {
-      this.pendingSubs.set(subId, {ok, fail, span});
-      this.sendMessage({
-        msg: 'sub',
-        id: subId,
-        name: name,
-        params: params,
-      }, trace.setSpan(context.active(), span)).catch(fail);
-    });
-    return readyPromise;
+    this.pendingSubs.set(subId, async);
+    this.sendMessage({
+      msg: 'sub',
+      id: subId,
+      name: name,
+      params: params,
+    }, subContext).catch(async.fail);
   }
 
   async runInboundLoop(readable: ReadableStream<string>): Promise<void> {
@@ -175,7 +159,7 @@ export class DdpClientSocket {
           this.readySubs.add(subId);
 
           handlers.ok();
-          handlers.span.end();
+          handlers.span?.end();
         }
         this.livedataCb(packet);
         break;
@@ -188,8 +172,7 @@ export class DdpClientSocket {
           const message = packet.error?.message
             ?? 'Server refused the subscription without providing an error';
           handlers.fail(new Error(message));
-          handlers.span.setStatus({ code: SpanStatusCode.ERROR, message });
-          handlers.span.end();
+          handlers.span?.setStatus({ code: SpanStatusCode.ERROR, message }).end();
           this.livedataCb(packet);
         } else if (this.readySubs.delete(packet.id)) {
           // Any sort of cleanup for ready subs?
@@ -233,7 +216,7 @@ export class DdpClientSocket {
     }
   }
 
-  async sendMessage(packet: ClientSentPacket, traceContext?: Context): Promise<void> {
+  public async sendMessage(packet: ClientSentPacket, traceContext?: Context): Promise<void> {
     if (!this.writer) throw new Error(`not connected, no writer`);
 
     const baggage: Record<string,string> = {};

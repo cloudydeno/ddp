@@ -103,8 +103,12 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     private readonly selector: Record<string,unknown>,
     private readonly opts: FindOpts,
   ) {}
-  countAsync(applySkipLimit?: boolean): Promise<number> {
-    throw new Error("Method not implemented.");
+  async countAsync(/*applySkipLimit?: boolean*/): Promise<number> {
+    let count = 0;
+    for await (const _ of this) {
+      count++;
+    }
+    return count;
   }
   fetchAsync(): Promise<T[]> {
     return Promise.resolve(this.fetch());
@@ -127,8 +131,8 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
   observeChangesAsync(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): Promise<ObserverHandle<T>> {
     throw new Error("Method not implemented.");
   }
-  [Symbol.asyncIterator](): AsyncIterator<T, any, any> {
-    throw new Error("Method not implemented.");
+  async *[Symbol.asyncIterator](): AsyncIterator<T, any, any> {
+    for (const x of this) yield x;
   }
   [Symbol.iterator](): Iterator<T> {
     return this.coll.liveColl.findGenerator<T>(this.selector, this.opts);
