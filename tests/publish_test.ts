@@ -10,7 +10,7 @@ Deno.test('cursor subscribe', {
 }, async () => {
 
   const serverIface = new DdpInterface();
-  serverIface.addPublication('all', (sub) => {
+  serverIface.addPublication('all', () => {
     return [
       ReadableStream.from<ServerSentSubscriptionPacket>([
         {msg: 'added',collection:'numbers',id:'1',fields:{}},
@@ -23,7 +23,8 @@ Deno.test('cursor subscribe', {
     ];
   });
 
-  using session = await setupClientFor(serverIface);
+  using session = setupClientFor(serverIface);
+  await session.connect();
 
   const sub = session.client.subscribe('all');
   await sub.ready;

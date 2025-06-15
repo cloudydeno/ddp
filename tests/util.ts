@@ -2,7 +2,7 @@ import { DdpConnection } from "../src/client/mod.ts";
 import type { DdpInterface } from "../src/server/interface.ts";
 import { DdpStreamSession } from "../src/server/session.ts";
 
-export async function setupClientFor(serverIface: DdpInterface) {
+export function setupClientFor(serverIface: DdpInterface) {
 
   const clientToServer = new TransformStream<string>();
   const serverToClient = new TransformStream<string>();
@@ -13,14 +13,16 @@ export async function setupClientFor(serverIface: DdpInterface) {
     autoConnect: false,
     encapsulation: 'raw',
   });
-  await client.connectToStreams({
-    readable: serverToClient.readable,
-    writable: clientToServer.writable,
-  });
 
   return {
     client,
     server,
+    async connect() {
+      await client.connectToStreams({
+        readable: serverToClient.readable,
+        writable: clientToServer.writable,
+      });
+    },
     [Symbol.dispose]: () => server.close(),
   };
 }
