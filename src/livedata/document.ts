@@ -1,7 +1,7 @@
 import type { DocumentFields, FieldValue, FindOpts, HasId } from "./types.ts";
 
 /** @TODO replace impl with npm:sift */
-export function checkMatch(selector: Record<string,unknown>, docId: string, docFields: DocumentFields) {
+export function checkMatch(selector: Record<string,unknown>, docId: string, docFields: DocumentFields): boolean {
   for (const [field, spec] of Object.entries(selector)) {
     if (field.startsWith('$')) throw new Error(`TODO: selectors 1`);
     // console.log({spec, selector})
@@ -30,7 +30,7 @@ export function checkMatch(selector: Record<string,unknown>, docId: string, docF
 }
 
 /** Clones a document using the 'fields' subset. */
-export function makeReturnDoc<T extends HasId>(_id: string, original: T, opts: FindOpts) {
+export function makeReturnDoc<T extends HasId>(_id: string, original: T, opts: FindOpts): T {
   // const cloned = EJSON.clone(original);
 
   const fieldsSpec = (opts?.fields ?? {}) as Record<keyof T, boolean|undefined>;

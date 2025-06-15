@@ -1,6 +1,6 @@
 {
   "name": "@cloudydeno/ddp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "imports": {
     "lib/": "./src/lib/",
@@ -10,6 +10,11 @@
   "exports": {
     "./random": "./src/lib/random.ts",
     "./client": "./src/client/mod.ts",
+    "./livedata/collections/anonymous.ts": "./src/livedata/collections/anonymous.ts",
+    "./livedata/collections/live.ts": "./src/livedata/collections/live.ts",
+    "./livedata/collections/remote.ts": "./src/livedata/collections/remote.ts",
+    "./livedata/document.ts": "./src/livedata/document.ts",
+    "./livedata/types.ts": "./src/livedata/types.ts",
     "./server": "./src/server/mod.ts",
     "./server/otlp": "./src/server/otlp.ts"
   },

@@ -4,8 +4,8 @@ import type { HasId } from "../types.ts";
 import { LiveCollection, LiveCollectionApi } from "./live.ts";
 
 export class AnonymousCollection extends LiveCollection {
-  getApi() {
-    return new AnonymousCollectionApi(this);
+  getApi<T extends HasId>(): AnonymousCollectionApi<T> {
+    return new AnonymousCollectionApi<T>(this);
   }
 }
 
