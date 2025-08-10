@@ -17,8 +17,12 @@ const BaggageGetter: TextMapGetter<Record<string, string>> = {
   keys(h) { return Object.keys(h); },
 };
 
-// TODO: this class can probably use W3C streams better (e.g. outgoing backpressure)
-// This would depend on WebSocketStream to properly function though.
+/**
+ * A server-side handle to an inbound DDP socket's backend state.
+ *
+ * @TODO this class can probably use W3C streams better (e.g. outgoing backpressure)
+ * This would depend on WebSocketStream to properly function though.
+ */
 export abstract class DdpSession {
 
   public readonly collections: Map<string, PresentedCollection> = new Map;

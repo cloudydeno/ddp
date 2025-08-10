@@ -20,6 +20,7 @@ type DesiredSubscription = {
 
 type SocketAttempt = {
   socket: DdpClientSocket;
+  abortCtlr: AbortController;
   promise: Promise<void>;
 }
 
@@ -54,6 +55,9 @@ export class DdpConnection {
   private currentSocket: DdpClientSocket | null = null;
   private ensureNoActiveSocket() {
     if (this.currentAttempt) {
+      // I don't think this needs to be an Error.
+      // Leaving in for now in case the stack trace becomes helpful.
+      this.currentAttempt.abortCtlr.abort(new Error('ensureNoActiveSocket'));
       throw new Error(`TODO: reconnecting with an active connection attempt`);
     }
     if (this.currentSocket) {
@@ -62,7 +66,7 @@ export class DdpConnection {
         sub.ready = false;
       }
     }
-    if (this.currentStatus.connected) {
+    if (this.currentStatus.connected || this.currentStatus.status == 'connecting') {
       this.currentStatus.connected = false;
       this.currentStatus.status = 'offline';
     }
@@ -185,6 +189,8 @@ export class DdpConnection {
     };
   }
 
+  // TODO: understand why this is async, is async still needed?
+  // deno-lint-ignore require-await
   public async handleLivedataPacket(packet: ServerSentSubscriptionPacket): Promise<void> {
     // console.debug('C<-', Deno.inspect(packet, { depth: 1 }));
     switch (packet.msg) {
@@ -231,13 +237,23 @@ export class DdpConnection {
     }
   }
 
-  connect() {
+  connect(opts: {
+    /** Immediately retry if a connection is not   */
+    allowRetry?: boolean;
+  } = {}) {
     if (this.currentStatus.status == 'connected') return;
     if (this.currentStatus.status == 'connecting') {
-      // Should we consider this a request to cancel and retry?
-      return;
+      // if currently trying, in backoff, etc
+      // then no-op unless a retry is specifically requested
+      if (!opts.allowRetry) return;
     }
     this.#createSocket();
+  }
+  disconnect() {
+    if (this.currentStatus.status == 'offline') return;
+    this.currentSocket?.shutdown();
+    this.ensureNoActiveSocket();
+    this.currentStatus.reason = `connection.disconnect() was called`;
   }
 
   #createSocket() {
@@ -247,11 +263,21 @@ export class DdpConnection {
     const ddp = new DdpClientSocket(
       this.handleLivedataPacket.bind(this),
       this.opts.encapsulation);
-    // TODO: store setupPromise to 'lock' our connection attempt
+
     const factory = this.opts.dialerFunc ?? openWebsocketStream;
+
+    // store setupPromise to 'lock' our connection attempt
+    const abortCtlr = new AbortController;
     this.switchToNewSocket({
       socket: ddp,
-      promise: factory(this.appUrl, this.opts.encapsulation)
+      abortCtlr,
+      promise:
+        factory({
+          appUrl: this.appUrl,
+          encapsulation: this.opts.encapsulation,
+          headers: this.opts.additionalHeaders,
+          signal: abortCtlr.signal,
+        })
         .then(async ({ readable, writable }) => {
           ddp.writer = writable.getWriter();
           await runHandshake(ddp, readable as ReadableStream<string>);

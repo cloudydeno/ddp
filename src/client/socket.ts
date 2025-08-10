@@ -3,7 +3,6 @@ import { trace, SpanStatusCode, context, propagation, type Context } from "@clou
 
 import type { ClientSentPacket, ServerSentSubscriptionPacket, ServerSentPacket } from "lib/types.ts";
 import { type AsyncHandle, createAsyncHandle } from "./_async.ts";
-// import { openWebsocketStream, runHandshake } from "./_open.ts";
 
 export class DdpClientSocket {
   constructor(

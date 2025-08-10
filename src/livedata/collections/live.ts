@@ -107,6 +107,14 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     private readonly selector: Record<string,unknown>,
     private readonly opts: FindOpts,
   ) {}
+
+  count(): number {
+    let count = 0;
+    for (const _ of this) {
+      count++;
+    }
+    return count;
+  }
   async countAsync(/*applySkipLimit?: boolean*/): Promise<number> {
     let count = 0;
     for await (const _ of this) {
@@ -114,42 +122,16 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     }
     return count;
   }
-  fetchAsync(): Promise<T[]> {
-    return Promise.try(() => this.fetch());
-  }
-  forEachAsync(callback: (doc: T, index: number, cursor: Cursor<T>) => void, thisArg?: any): Promise<void> {
-    throw new Error("Method not implemented.");
-  }
-  map<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): M[] {
-    throw new Error("Method not implemented.");
-  }
-  mapAsync<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): Promise<M[]> {
-    throw new Error("Method not implemented.");
-  }
-  observeAsync(callbacks: ObserveCallbacks<T>): Promise<ObserverHandle<T>> {
-    throw new Error("Method not implemented.");
-  }
-  observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle<T> {
-    throw new Error("Method not implemented.");
-  }
-  observeChangesAsync(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): Promise<ObserverHandle<T>> {
-    throw new Error("Method not implemented.");
-  }
-  async *[Symbol.asyncIterator](): AsyncIterator<T, any, any> {
-    for (const x of this) yield x;
-  }
+
   [Symbol.iterator](): Iterator<T> {
     return this.coll.liveColl.findGenerator<T>(this.selector, this.opts);
   }
+  async *[Symbol.asyncIterator](): AsyncIterator<T> {
+    for (const x of this) yield x;
+  }
+
   fetch(): T[] {
     return Array.from(this);
-  }
-  count(): number {
-    let count = 0;
-    for (const _ of this) {
-      count++;
-    }
-    return count;
   }
   forEach(
     callback: (doc: T, index: number, cursor: Cursor<T>) => void,
@@ -159,6 +141,9 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     for (const doc of this) {
       callback.call(thisArg, doc, idx++, this);
     }
+  }
+  map<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): M[] {
+    throw new Error("TODO: Method 'map' not implemented.");
   }
   observe(cbs: ObserveCallbacks<T>): ObserverHandle<T> {
     const query = new LiveQuery<T>(this.coll, this.selector, this.opts, cbs);
@@ -170,6 +155,25 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
         query.stopCtlr.abort();
       },
     };
+  }
+  observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle<T> {
+    throw new Error("TODO: Method 'observeChanges' not implemented.");
+  }
+
+  fetchAsync(): Promise<T[]> {
+    return Promise.try(() => this.fetch());
+  }
+  forEachAsync(callback: (doc: T, index: number, cursor: Cursor<T>) => void, thisArg?: any): Promise<void> {
+    return Promise.try(() => this.forEach(callback, thisArg));
+  }
+  mapAsync<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): Promise<M[]> {
+    return Promise.try(() => this.map(callback, thisArg));
+  }
+  observeAsync(callbacks: ObserveCallbacks<T>): Promise<ObserverHandle<T>> {
+    return Promise.try(() => this.observe(callbacks));
+  }
+  observeChangesAsync(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): Promise<ObserverHandle<T>> {
+    return Promise.try(() => this.observeChanges(callbacks, options));
   }
 }
 

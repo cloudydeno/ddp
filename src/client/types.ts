@@ -18,12 +18,21 @@ export type ConnectionOptions = {
   encapsulation: 'sockjs' | 'raw';
   autoConnect: boolean;
   // autoReconnect?: boolean;
+  /** Optionally send extra HTTP request headers when connecting to the server */
+  additionalHeaders?: HeadersInit;
   /** Custom callback to connect to the server, instead of WebSocketStream */
-  dialerFunc?: (url: string, encapsulation: 'sockjs' | 'raw') => Promise<{
+  dialerFunc?: (options: DialOptions) => Promise<{
     readable: ReadableStream<string>,
     writable: WritableStream<string>,
   }>;
 }
+
+export type DialOptions = {
+  appUrl: string;
+  encapsulation: 'sockjs' | 'raw';
+  signal?: AbortSignal;
+  headers?: HeadersInit;
+};
 
 export interface DdpSubscription {
   readonly subId: string;
