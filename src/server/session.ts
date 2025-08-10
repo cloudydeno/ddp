@@ -282,6 +282,10 @@ function emitToSub(
   sources: Array<PublishStream>,
 ) {
   let unreadyCount = sources.length;
+  if (unreadyCount == 0) {
+    sub.ready();
+    return;
+  }
   sources.map(source => source.pipeTo(new WritableStream({
     write(packet) {
       switch (packet.msg) {
