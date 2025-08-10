@@ -15,8 +15,8 @@ async function otlpProxy(url: string, body: unknown) {
   return await resp.json();
 }
 
-export function registerOtlpMethods(ddp: DdpInterface) {
-  const otlpEndpoint = Deno.env.get('OTEL_EXPORTER_OTLP_ENDPOINT');
+export function registerOtlpMethods(ddp: DdpInterface, otlpEndpoint?: string | undefined) {
+  otlpEndpoint ??= globalThis.Deno?.env.get('OTEL_EXPORTER_OTLP_ENDPOINT');
   if (!otlpEndpoint) return;
 
   ddp.addMethod('OTLP/server-time', () => Date.now());

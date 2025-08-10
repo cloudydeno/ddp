@@ -34,6 +34,8 @@ export abstract class DdpSession {
   constructor (
     private readonly ddpInterface: DdpInterface,
     protected readonly telemetryAttrs: Attributes,
+    // public readonly clientAddress: string,
+    public readonly httpHeaders: Record<string, string>,
   ) {
     this.closeCtlr.signal.addEventListener('abort', () => {
       for (const ctlr of this.namedSubs.values()) {
@@ -48,6 +50,10 @@ export abstract class DdpSession {
   // telemetryAttrs: Attributes;
   public closePromise: Promise<void> | null = null;
 
+  get clientAddress(): string {
+    return String(this.telemetryAttrs['network.peer.address']) ?? 'unknown';
+  }
+
   protected readonly closeCtlr: AbortController = new AbortController();
   public get closeSignal(): AbortSignal { return this.closeCtlr.signal; }
 
@@ -61,8 +67,6 @@ export abstract class DdpSession {
   onClose(callback: () => void): void {
     this.closeCtlr.signal.addEventListener('abort', callback);
   }
-  clientAddress = 'string';
-  httpHeaders: Record<string, string> = {};
 
   public readonly universalSubs: Set<DdpSessionSubscription> = new Set;
   public readonly namedSubs: Map<string, DdpSessionSubscription> = new Map;
@@ -180,14 +184,16 @@ export class DdpSocketSession extends DdpSession {
     private readonly socket: WebSocket,
     ddpInterface: DdpInterface,
     public readonly encapsulation: 'sockjs' | 'raw',
+    remoteAddr: Deno.Addr,
+    httpHeaders: Record<string, string>,
   ) {
-    super(ddpInterface, {
-      // 'net.peer.name': socket.remoteAddress,
-      // 'net.peer.port': socket.remotePort,
-      // 'net.host.name': socket.address.address,
-      // 'net.host.port': socket.address.port,
-      // 'net.sock.family': ({'IPv4':'inet','IPv6':'inet6'})[socket.address.family] ?? socket.address.family,
-    });
+    super(ddpInterface, remoteAddr.transport == 'tcp' ? {
+      // https://opentelemetry.io/docs/specs/semconv/registry/attributes/network/
+      'network.transport': 'tcp',
+      'network.type': remoteAddr.hostname.includes(':') ? 'ipv6' : 'ipv4',
+      'network.peer.address': remoteAddr.hostname,
+      'network.peer.port': remoteAddr.port,
+    } : {}, httpHeaders);
 
     socket.addEventListener('open', () => {
       // console.log('socket open')
@@ -206,14 +212,14 @@ export class DdpSocketSession extends DdpSession {
     this.closePromise = new Promise<void>((ok, fail) => {
       socket.addEventListener('error', (evt: ErrorEventInit) => {
         const error = evt.error ?? new Error(evt.message || 'Unidentified WebSocket error.');
-        fail(new Error(`WebSocket errored: ${error.message}`));
+        fail(new Error(`DDP WebSocket errored: ${error.message}`));
         this.closeCtlr.abort(error);
-        console.log("WebSocket errored:", error.message);
+        console.log("DDP WebSocket errored:", error.message);
       });
       socket.addEventListener('close', () => {
         ok();
         this.closeCtlr.abort();
-        console.log("WebSocket closed");
+        console.log("DDP WebSocket closed");
       });
     });
   }
@@ -239,7 +245,7 @@ export class DdpStreamSession extends DdpSession {
     readable: ReadableStream<string>,
     writable: WritableStream<string>,
   ) {
-    super(ddpInterface, {});
+    super(ddpInterface, {}, {});
 
     this.closePromise = readable.pipeTo(new WritableStream({
       write: async (packet) => {
