@@ -10,6 +10,7 @@
   },
   "exports": {
     "./random": "./src/lib/random.ts",
+    "./live-variable": "./src/lib/live-variable.ts",
     "./client": "./src/client/mod.ts",
     "./livedata/collections/anonymous.ts": "./src/livedata/collections/anonymous.ts",
     "./livedata/collections/live.ts": "./src/livedata/collections/live.ts",

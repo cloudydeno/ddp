@@ -41,15 +41,3 @@ export function makeTestDialerFunc(serverIface: DdpInterface) {
     });
   };
 }
-
-export function waitForValue<T>(liveVar: LiveVariable<T>, waitFor: (value: T) => unknown): Promise<T> {
-  return new Promise(ok => {
-    const cancel = liveVar.subscribe(() => {
-      const value = liveVar.getSnapshot();
-      if (waitFor(value)) {
-        cancel();
-        ok(value);
-      }
-    })
-  });
-}

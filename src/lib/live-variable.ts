@@ -41,4 +41,25 @@ export class LiveVariable<Tvalue=unknown> {
     if (caught) throw caught;
   }
 
+  waitFor(predicate: (value: Tvalue) => unknown): Promise<Tvalue> {
+    return new Promise(ok => {
+      const initial = this.getSnapshot();
+      if (predicate(initial)) {
+        return ok(initial);
+      }
+
+      const cancel = this.subscribe(() => {
+        const value = this.getSnapshot();
+        if (predicate(value)) {
+          cancel();
+          ok(value);
+        }
+      })
+    });
+  }
+
+  async waitForValue(value: Tvalue): Promise<void> {
+    await this.waitFor(x => x == value);
+  }
+
 }

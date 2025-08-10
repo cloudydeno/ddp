@@ -1,7 +1,7 @@
 import { assertEquals } from '@std/assert/equals';
 
 import { DdpInterface } from '../src/server/interface.ts';
-import { setupClientFor, waitForValue } from "./util.ts";
+import { setupClientFor } from "./util.ts";
 
 Deno.test('offline buffer methods', {
   permissions: 'none',
@@ -47,6 +47,6 @@ Deno.test('offline subscriptions', {
 
   client.connect();
 
-  await waitForValue(sub.liveReady, x => x);
+  await sub.liveReady.waitForValue(true);
   assertEquals(await collection.find().countAsync(), 2);
 });

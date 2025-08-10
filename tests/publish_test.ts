@@ -3,7 +3,7 @@ import { assertObjectMatch } from "@std/assert/object-match";
 
 import type { ServerSentSubscriptionPacket } from "lib/types.ts";
 import { DdpInterface } from "../src/server/interface.ts";
-import { setupClientFor, waitForValue } from "./util.ts";
+import { setupClientFor } from "./util.ts";
 
 Deno.test('cursor subscribe', {
   permissions: 'none',
@@ -27,7 +27,7 @@ Deno.test('cursor subscribe', {
   await client.ping();
 
   const sub = client.subscribe('all');
-  await waitForValue(sub.liveReady, x => x);
+  await sub.liveReady.waitForValue(true);
 
   {
     const collection = client.getCollection('numbers');
