@@ -263,7 +263,6 @@ export class DdpStreamSession extends DdpSession {
       },
       close: () => {
         this.closeCtlr.abort();
-        console.log("WebSocket closed");
       },
     }));
 

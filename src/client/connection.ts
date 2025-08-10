@@ -1,8 +1,8 @@
 import type { EJSONableProperty } from "@cloudydeno/ejson";
 import { SpanKind, trace } from "@cloudydeno/opentelemetry/pkg/api";
 
-import type { ServerSentSubscriptionPacket } from "lib/types.ts";
-import { LiveVariable } from "lib/live-variable.ts";
+import type { ServerSentSubscriptionPacket } from "../lib/types.ts";
+import { LiveVariable } from "../lib/live-variable.ts";
 
 import type { Collection, HasId } from "../livedata/types.ts";
 import { RemoteCollection } from "../livedata/collections/remote.ts";
@@ -66,8 +66,8 @@ export class DdpConnection {
     if (this.currentAttempt) {
       // I don't think this needs to be an Error.
       // Leaving in for now in case the stack trace becomes helpful.
-      this.currentAttempt.abortCtlr.abort(new Error('ensureNoActiveSocket'));
-      throw new Error(`TODO: reconnecting with an active connection attempt`);
+      this.currentAttempt.abortCtlr.abort(new Error(reason || 'ensureNoActiveSocket'));
+      this.currentAttempt = null;
     }
     if (this.currentSocket) {
       this.currentSocket = null;
@@ -113,15 +113,34 @@ export class DdpConnection {
         case 'method': attempt.socket.sendMethod(item.async, item.methodId, item.name, item.params); break;
       }
       this.offlineQueue.length = 0;
+    }).catch(err => {
+      if (typeof err == 'object') {
+        console.error(`WARNING: DDP connection attempt failed, will retry:`, err.message);
+      }
+      // this.currentAttempt = null;
+      const backoffMillis = 10_000;
+      this.liveStatus.setSnapshot({
+        status: 'waiting',
+        connected: false,
+        retryCount: this.status.retryCount + 1,
+        reason: err.message,
+        retryTimeNumber: Date.now() + backoffMillis,
+      }
+    );
+      const timer = setTimeout(() => {
+        this.currentAttempt = null;
+        this.connect();
+      }, backoffMillis);
+      this.currentAttempt!.abortCtlr.signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+      });
     });
   }
 
   /**
    * Intended for `using` statements. Shuts down the client as disposal.
-   * Pings the server first to ensure nothing is pending.
    */
   async [Symbol.dispose]() {
-    await this.ping();
     this.disconnect();
   }
 
@@ -284,6 +303,7 @@ export class DdpConnection {
   }
   disconnect() {
     if (this.status.status == 'offline') return;
+    this.currentSocket?.writer?.close();
     this.currentSocket?.shutdown();
     this.ensureNoActiveSocket(`client was manually disconnected`);
   }
