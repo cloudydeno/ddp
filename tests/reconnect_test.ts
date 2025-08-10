@@ -1,23 +1,21 @@
-import { setupClientWithoutInterface } from "./util.ts";
+import { setupBoringClient } from "./util.ts";
 
 Deno.test('explicit disconnect/connect cycle', {
   permissions: 'none',
 }, async () => {
-  using session = setupClientWithoutInterface();
-  const { client } = session;
+  using client = setupBoringClient();
 
   await client.ping();
-  session.client.disconnect();
+  client.disconnect();
 
-  session.client.connect();
-  await session.ping();
+  client.connect();
+  await client.ping();
 });
 
 Deno.test('offline queue during disconnect/connect', {
   permissions: 'none',
 }, async () => {
-  using session = setupClientWithoutInterface();
-  const { client } = session;
+  using client = setupBoringClient();
 
   await client.ping();
   client.disconnect();

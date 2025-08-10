@@ -15,10 +15,10 @@ Deno.test('basic method', {
     return '👍';
   });
 
-  using session = setupClientFor(serverIface);
-  await session.ping();
+  using client = setupClientFor(serverIface);
+  await client.ping();
 
-  const emojiResp = await session.client.callMethod('emoji', []);
+  const emojiResp = await client.callMethod('emoji', []);
   assertEquals(emojiResp, '👍');
 });
 
@@ -35,13 +35,13 @@ Deno.test('basic subscribe', {
     sub.ready();
   });
 
-  using session = setupClientFor(serverIface);
-  await session.ping();
+  using client = setupClientFor(serverIface);
+  await client.ping();
 
-  const sub = session.client.subscribe('increments', [16]);
+  const sub = client.subscribe('increments', [16]);
   await sub.ready;
 
-  const collection = session.client.getCollection('sequence');
+  const collection = client.getCollection('sequence');
   const items = await collection.find().fetchAsync();
 
   assertEquals(items.length, 16);
@@ -59,11 +59,11 @@ Deno.test('universal publish', {
     sub.ready();
   });
 
-  using session = setupClientFor(serverIface);
-  await session.ping();
+  using client = setupClientFor(serverIface);
+  await client.ping();
 
-  const collection = session.client.getCollection('server-identity');
-  await session.client.ping();
+  const collection = client.getCollection('server-identity');
+  await client.ping();
   const item = collection.findOne({ _id: 'main' });
   assert(item);
   assertObjectMatch(item, { name: 'e2e tests' });

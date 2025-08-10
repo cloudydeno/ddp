@@ -1,6 +1,4 @@
-import { assert } from 'jsr:@std/assert@1.0.13/assert';
 import { assertEquals } from 'jsr:@std/assert@1.0.13/equals';
-import { assertObjectMatch } from 'jsr:@std/assert@1.0.13/object-match';
 
 import { DdpInterface } from '../src/server/interface.ts';
 import { setupClientFor } from "./util.ts";
@@ -15,12 +13,12 @@ Deno.test('offline buffer methods', {
     return '👍';
   });
 
-  using session = setupClientFor(serverIface, {
+  using client = setupClientFor(serverIface, {
     autoConnect: false,
   });
 
-  const methodPromise = session.client.callMethod('emoji', []);
-  session.client.connect();
+  const methodPromise = client.callMethod('emoji', []);
+  client.connect();
   const emojiResp = await methodPromise;
 
   assertEquals(emojiResp, '👍');
@@ -37,17 +35,17 @@ Deno.test('offline subscriptions', {
     sub.ready();
   });
 
-  using session = setupClientFor(serverIface, {
+  using client = setupClientFor(serverIface, {
     autoConnect: false,
   });
 
-  const collection = session.client.getCollection('climate');
+  const collection = client.getCollection('climate');
   assertEquals(await collection.find().countAsync(), 0);
 
-  const sub = session.client.subscribe('climate/all');
+  const sub = client.subscribe('climate/all');
   assertEquals(await collection.find().countAsync(), 0);
 
-  session.client.connect();
+  client.connect();
 
   await sub.ready;
   assertEquals(await collection.find().countAsync(), 2);

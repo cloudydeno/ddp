@@ -21,11 +21,13 @@ export type ConnectionOptions = {
   /** Optionally send extra HTTP request headers when connecting to the server */
   additionalHeaders?: HeadersInit;
   /** Custom callback to connect to the server, instead of WebSocketStream */
-  dialerFunc?: (options: DialOptions) => Promise<{
-    readable: ReadableStream<string>,
-    writable: WritableStream<string>,
-  }>;
+  dialerFunc?: DialerFunc;
 }
+
+export type DialerFunc = (options: DialOptions) => Promise<{
+  readable: ReadableStream<string>,
+  writable: WritableStream<string>,
+}>;
 
 export type DialOptions = {
   appUrl: string;

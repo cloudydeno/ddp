@@ -23,21 +23,21 @@ Deno.test('cursor subscribe', {
     ];
   });
 
-  using session = setupClientFor(serverIface);
-  await session.ping();
+  using client = setupClientFor(serverIface);
+  await client.ping();
 
-  const sub = session.client.subscribe('all');
+  const sub = client.subscribe('all');
   await sub.ready;
 
   {
-    const collection = session.client.getCollection('numbers');
+    const collection = client.getCollection('numbers');
     const items = await collection.find().fetchAsync();
     assertEquals(items.length, 1);
     assertObjectMatch(items[0], { _id: "1" });
   }
 
   {
-    const collection = session.client.getCollection('letters');
+    const collection = client.getCollection('letters');
     const items = await collection.find().fetchAsync();
     assertEquals(items.length, 1);
     assertObjectMatch(items[0], { _id: "a" });

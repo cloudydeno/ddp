@@ -95,6 +95,16 @@ export class DdpConnection {
     });
   }
 
+  /**
+   * Intended for `using` statements. Shuts down the client as disposal.
+   * Pings the server first to ensure nothing is pending.
+   */
+  async [Symbol.dispose]() {
+    await this.ping();
+    this.disconnect();
+  }
+
+
   private grabCollection(collectionName: string): RemoteCollection {
     let coll = this.collections.get(collectionName);
     if (!coll) {
