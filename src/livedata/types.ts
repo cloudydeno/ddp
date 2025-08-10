@@ -6,6 +6,7 @@ export type HasId = { _id: string };
 export type DocumentWithId = DocumentFields & HasId;
 
 export interface Collection<T extends {_id: string}> {
+  findOneAsync(selector?: Record<string,unknown>, opts?: FindOpts): Promise<T | null>;
   findOne(selector?: Record<string,unknown>, opts?: FindOpts): T | null;
   find(selector?: Record<string,unknown>, opts?: FindOpts): Cursor<T>;
 }

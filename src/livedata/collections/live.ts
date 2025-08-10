@@ -85,6 +85,10 @@ export class LiveCollectionApi<T extends HasId> implements Collection<T> {
     public readonly liveColl: LiveCollection,
   ) {}
 
+  findOneAsync(selector?: Record<string, unknown>, opts?: FindOpts): Promise<T | null> {
+    return Promise.try(() => this.findOne(selector, opts));
+  }
+
   findOne(selector: Record<string,unknown> = {}, opts: FindOpts = {}): T | null {
     for (const doc of this.liveColl.findGenerator<T>(selector, opts)) {
       return doc;
@@ -111,7 +115,7 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
     return count;
   }
   fetchAsync(): Promise<T[]> {
-    return Promise.resolve(this.fetch());
+    return Promise.try(() => this.fetch());
   }
   forEachAsync(callback: (doc: T, index: number, cursor: Cursor<T>) => void, thisArg?: any): Promise<void> {
     throw new Error("Method not implemented.");
