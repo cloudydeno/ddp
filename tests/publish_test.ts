@@ -1,5 +1,5 @@
-import { assertEquals } from "jsr:@std/assert@1.0.13/equals";
-import { assertObjectMatch } from "jsr:@std/assert@1.0.13/object-match";
+import { assertEquals } from "@std/assert/equals";
+import { assertObjectMatch } from "@std/assert/object-match";
 
 import type { ServerSentSubscriptionPacket } from "lib/types.ts";
 import { DdpInterface } from "../src/server/interface.ts";

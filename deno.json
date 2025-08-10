@@ -4,6 +4,7 @@
   "license": "MIT",
   "imports": {
     "lib/": "./src/lib/",
+    "@std/assert": "jsr:@std/assert@^1.0.13",
     "@cloudydeno/ejson": "jsr:@cloudydeno/ejson@^0.1",
     "@cloudydeno/opentelemetry": "jsr:@cloudydeno/opentelemetry@^0.10"
   },

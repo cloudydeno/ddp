@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1.0.13/equals";
+import { assertEquals } from "@std/assert/equals";
 import { AnonymousCollection } from "./anonymous.ts";
 
 Deno.test('AnonymousCollection inserts', () => {

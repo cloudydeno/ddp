@@ -4,9 +4,9 @@
     "jsr:@cloudydeno/ejson@0.1": "0.1.1",
     "jsr:@cloudydeno/opentelemetry@0.10": "0.10.3",
     "jsr:@cloudydeno/shimmer@1.2.1": "1.2.1",
-    "jsr:@std/assert@1.0.13": "1.0.13",
+    "jsr:@std/assert@^1.0.13": "1.0.13",
     "jsr:@std/encoding@1.0.9": "1.0.9",
-    "jsr:@std/internal@^1.0.6": "1.0.7"
+    "jsr:@std/internal@^1.0.6": "1.0.9"
   },
   "jsr": {
     "@cloudydeno/ejson@0.1.1": {
@@ -33,14 +33,15 @@
     "@std/encoding@1.0.9": {
       "integrity": "025b8f18eb1749bc30d1353bf48b77d1eb5e35610220fa226f5a046b9240c5d7"
     },
-    "@std/internal@1.0.7": {
-      "integrity": "39eeb5265190a7bc5d5591c9ff019490bd1f2c3907c044a11b0d545796158a0f"
+    "@std/internal@1.0.9": {
+      "integrity": "bdfb97f83e4db7a13e8faab26fb1958d1b80cc64366501af78a0aee151696eb8"
     }
   },
   "workspace": {
     "dependencies": [
       "jsr:@cloudydeno/ejson@0.1",
-      "jsr:@cloudydeno/opentelemetry@0.10"
+      "jsr:@cloudydeno/opentelemetry@0.10",
+      "jsr:@std/assert@^1.0.13"
     ]
   }
 }
