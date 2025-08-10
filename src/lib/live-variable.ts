@@ -13,7 +13,7 @@ export class LiveVariable<Tvalue=unknown> {
   }
   #value: Tvalue;
 
-  subscriptions = new Set<() => void>;
+  subscriptions: Set<() => void> = new Set;
 
   // Explicitly bound to more direclty support React hooks
   // via https://react.dev/reference/react/useSyncExternalStore

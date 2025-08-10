@@ -44,7 +44,7 @@ export class DdpConnection {
   private readonly collections: Map<string, RemoteCollection> = new Map;
   private readonly desiredSubs: Map<string, DesiredSubscription> = new Map;
 
-  public liveStatus = new LiveVariable<ConnectionStatus>({
+  public liveStatus: LiveVariable<ConnectionStatus> = new LiveVariable({
     connected: false,
     status: 'offline',
     retryCount: 0,
