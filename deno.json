@@ -15,8 +15,7 @@
     "./livedata/collections/remote.ts": "./src/livedata/collections/remote.ts",
     "./livedata/document.ts": "./src/livedata/document.ts",
     "./livedata/types.ts": "./src/livedata/types.ts",
-    "./server": "./src/server/mod.ts",
-    "./server/otlp": "./src/server/otlp.ts"
+    "./server": "./src/server/mod.ts"
   },
   "nodeModulesDir": "none",
   "exclude": [
