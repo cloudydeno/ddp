@@ -1,3 +1,5 @@
+import type { LiveVariable } from "lib/live-variable.ts";
+
 export type StatusEnum =
 | 'connected' // the connection is up and running
 | 'connecting' // disconnected and trying to open a new connection
@@ -38,6 +40,6 @@ export type DialOptions = {
 
 export interface DdpSubscription {
   readonly subId: string;
-  readonly ready: Promise<void>;
+  readonly liveReady: LiveVariable<boolean>;
   stop(): void;
 }

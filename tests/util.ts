@@ -1,4 +1,5 @@
 import { type ConnectionOptions, type DialOptions, DdpConnection } from "../src/client/mod.ts";
+import { LiveVariable } from "lib/live-variable.ts";
 import { DdpInterface, DdpStreamSession } from "../src/server/mod.ts";
 
 /** Returns a client pointed at a blank, all-default server interface. */
@@ -39,4 +40,16 @@ export function makeTestDialerFunc(serverIface: DdpInterface) {
       writable: clientToServer.writable,
     });
   };
+}
+
+export function waitForValue<T>(liveVar: LiveVariable<T>, waitFor: (value: T) => unknown): Promise<T> {
+  return new Promise(ok => {
+    const cancel = liveVar.subscribe(() => {
+      const value = liveVar.getSnapshot();
+      if (waitFor(value)) {
+        cancel();
+        ok(value);
+      }
+    })
+  });
 }

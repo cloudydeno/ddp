@@ -17,7 +17,7 @@ type DesiredSubscription = {
   // context: Context;
   async: AsyncHandle;
   // readyPromise: Promise<void>;
-  ready: boolean;
+  ready: LiveVariable<boolean>;
 };
 
 type SocketAttempt = {
@@ -72,7 +72,7 @@ export class DdpConnection {
     if (this.currentSocket) {
       this.currentSocket = null;
       for (const sub of this.desiredSubs.values()) {
-        sub.ready = false;
+        sub.ready.setSnapshot(false);
       }
     }
     if (this.status.connected || this.status.status == 'connecting') {
@@ -201,13 +201,14 @@ export class DdpConnection {
 
     const desiredSub: DesiredSubscription = {
       name, params,
-      ready: false,
+      ready: new LiveVariable(false),
+      // TODO: store nosub error: new LiveVariable(error),
       async: createAsyncHandle(span),
     };
     this.desiredSubs.set(subId, desiredSub);
     this.currentSocket?.subscribe(subId, desiredSub.async, name, params);
     return {
-      ready: desiredSub.async.promise,
+      liveReady: desiredSub.ready,
       subId,
       stop: () => {
         const wasLive = this.desiredSubs.delete(subId);
@@ -252,14 +253,14 @@ export class DdpConnection {
         for (const subId of packet.subs) {
           const sub = this.desiredSubs.get(subId);
           if (!sub) continue; // assert?
-          sub.ready = true; // reactive?
+          sub.ready.setSnapshot(true);
         }
         break;
       case 'nosub':
         {
           const sub = this.desiredSubs.get(packet.id);
           if (!sub) break; // assert?
-          sub.ready = false; // reactive?
+          sub.ready.setSnapshot(false);
         }
         break;
 

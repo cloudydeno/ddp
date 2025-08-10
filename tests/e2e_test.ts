@@ -3,7 +3,7 @@ import { assertEquals } from '@std/assert/equals';
 import { assertObjectMatch } from '@std/assert/object-match';
 
 import { DdpInterface } from '../src/server/interface.ts';
-import { setupClientFor } from "./util.ts";
+import { setupClientFor, waitForValue } from "./util.ts";
 
 Deno.test('basic method', {
   permissions: 'none',
@@ -39,7 +39,7 @@ Deno.test('basic subscribe', {
   await client.ping();
 
   const sub = client.subscribe('increments', [16]);
-  await sub.ready;
+  await waitForValue(sub.liveReady, x => x);
 
   const collection = client.getCollection('sequence');
   const items = await collection.find().fetchAsync();
