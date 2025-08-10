@@ -2,8 +2,8 @@ import { type ConnectionOptions, type DialOptions, DdpConnection } from "../src/
 import { DdpInterface, DdpStreamSession } from "../src/server/mod.ts";
 
 /** Returns a client pointed at a blank, all-default server interface. */
-export function setupBoringClient() {
-  return setupClientFor(new DdpInterface());
+export function setupBoringClient(clientOpts: Partial<ConnectionOptions> = {}) {
+  return setupClientFor(new DdpInterface(), clientOpts);
 }
 
 /** Returns a client pointed at the given server interface. */

@@ -2,6 +2,8 @@ import type { EJSONableProperty } from "@cloudydeno/ejson";
 import { SpanKind, trace } from "@cloudydeno/opentelemetry/pkg/api";
 
 import type { ServerSentSubscriptionPacket } from "lib/types.ts";
+import { LiveVariable } from "lib/live-variable.ts";
+
 import type { Collection, HasId } from "../livedata/types.ts";
 import { RemoteCollection } from "../livedata/collections/remote.ts";
 import { DdpClientSocket } from "./socket.ts";
@@ -42,18 +44,25 @@ export class DdpConnection {
   private readonly collections: Map<string, RemoteCollection> = new Map;
   private readonly desiredSubs: Map<string, DesiredSubscription> = new Map;
 
-  private currentStatus: ConnectionStatus = {
+  public liveStatus = new LiveVariable<ConnectionStatus>({
     connected: false,
     status: 'offline',
     retryCount: 0,
-  };
-  public status(): ConnectionStatus {
-    return structuredClone(this.currentStatus);
+  });
+  /** Not reactive. Use liveStatus.subscribe() to observe updates. */
+  public get status(): ConnectionStatus {
+    return this.liveStatus.getSnapshot();
+  }
+  private patchStatus(updates: Partial<ConnectionStatus>) {
+    this.liveStatus.setSnapshot({
+      ...this.liveStatus.getSnapshot(),
+      ...updates,
+    });
   }
 
   private currentAttempt: SocketAttempt | null = null;
   private currentSocket: DdpClientSocket | null = null;
-  private ensureNoActiveSocket() {
+  private ensureNoActiveSocket(reason?: string) {
     if (this.currentAttempt) {
       // I don't think this needs to be an Error.
       // Leaving in for now in case the stack trace becomes helpful.
@@ -66,23 +75,35 @@ export class DdpConnection {
         sub.ready = false;
       }
     }
-    if (this.currentStatus.connected || this.currentStatus.status == 'connecting') {
-      this.currentStatus.connected = false;
-      this.currentStatus.status = 'offline';
+    if (this.status.connected || this.status.status == 'connecting') {
+      this.patchStatus({
+        connected: false,
+        status: 'offline',
+        reason,
+      });
     }
   }
   private switchToNewSocket(attempt: SocketAttempt) {
     this.ensureNoActiveSocket();
+
     this.currentAttempt = attempt;
-    this.currentStatus.status = 'connecting';
+    if (this.status.status !== 'connecting') {
+      this.patchStatus({
+        status: 'connecting',
+        connected: false,
+      });
+    }
+
     attempt.promise.then(() => {
       if (attempt != this.currentAttempt) return;
       this.currentAttempt = null;
       this.currentSocket = attempt.socket;
 
-      this.currentStatus.connected = true;
-      this.currentStatus.status = 'connected';
-      this.currentStatus.retryCount = 0;
+      this.liveStatus.setSnapshot({
+        status: 'connected',
+        connected: true,
+        retryCount: 0,
+      });
 
       for (const [subId, sub] of this.desiredSubs.entries()) {
         attempt.socket.subscribe(subId, sub.async, sub.name, sub.params);
@@ -248,11 +269,12 @@ export class DdpConnection {
   }
 
   connect(opts: {
-    /** Immediately retry if a connection is not   */
+    /** Immediately retry if a connection is already desired but not healthy */
     allowRetry?: boolean;
   } = {}) {
-    if (this.currentStatus.status == 'connected') return;
-    if (this.currentStatus.status == 'connecting') {
+    const { status } = this.status;
+    if (status == 'connected') return;
+    if (status !== 'offline') {
       // if currently trying, in backoff, etc
       // then no-op unless a retry is specifically requested
       if (!opts.allowRetry) return;
@@ -260,10 +282,9 @@ export class DdpConnection {
     this.#createSocket();
   }
   disconnect() {
-    if (this.currentStatus.status == 'offline') return;
+    if (this.status.status == 'offline') return;
     this.currentSocket?.shutdown();
-    this.ensureNoActiveSocket();
-    this.currentStatus.reason = `connection.disconnect() was called`;
+    this.ensureNoActiveSocket(`client was manually disconnected`);
   }
 
   #createSocket() {

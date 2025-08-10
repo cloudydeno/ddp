@@ -1,4 +1,4 @@
-type Status =
+export type StatusEnum =
 | 'connected' // the connection is up and running
 | 'connecting' // disconnected and trying to open a new connection
 | 'failed' // permanently failed to connect; e.g., the client and server support different versions of DDP
@@ -8,7 +8,7 @@ type Status =
 
 export type ConnectionStatus = {
   connected: boolean;
-  status: Status;
+  status: StatusEnum;
   retryCount: number;
   retryTimeNumber?: number;
   reason?: string;
