@@ -1,5 +1,4 @@
 import { type ConnectionOptions, type DialOptions, DdpConnection } from "../src/client/mod.ts";
-import { LiveVariable } from "lib/live-variable.ts";
 import { DdpInterface, DdpStreamSession } from "../src/server/mod.ts";
 
 /** Returns a client pointed at a blank, all-default server interface. */

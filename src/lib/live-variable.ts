@@ -28,6 +28,7 @@ export class LiveVariable<Tvalue=unknown> {
   }
 
   setSnapshot(newValue: Tvalue): void {
+    if (this.#value === newValue) return;
     this.#value = newValue;
 
     let caught: unknown = null;
