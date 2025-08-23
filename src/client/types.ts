@@ -38,7 +38,7 @@ export type DialOptions = {
   headers?: HeadersInit;
 };
 
-export interface DdpSubscription {
+export interface DdpSubscription extends Disposable {
   readonly subId: string;
   readonly liveReady: LiveVariable<boolean>;
   stop(): void;

@@ -29,7 +29,7 @@ type SocketAttempt = {
 const methodTracer = trace.getTracer('ddp.method');
 const subTracer = trace.getTracer('ddp.subscription');
 
-export class DdpConnection {
+export class DdpConnection implements Disposable {
 
   constructor(
     public readonly appUrl: string,
@@ -140,10 +140,9 @@ export class DdpConnection {
   /**
    * Intended for `using` statements. Shuts down the client as disposal.
    */
-  async [Symbol.dispose]() {
+  [Symbol.dispose]() {
     this.disconnect();
   }
-
 
   private grabCollection(collectionName: string): RemoteCollection {
     let coll = this.collections.get(collectionName);
@@ -236,6 +235,9 @@ export class DdpConnection {
           msg: 'unsub',
           id: subId,
         });
+      },
+      [Symbol.dispose]() {
+        this.stop();
       },
     };
   }
