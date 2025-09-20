@@ -10,5 +10,6 @@ export type {
   MethodHandler,
   PublicationHandler,
   TracedClientSentPacket,
+  PublicationEvent,
   PublishStream,
 } from "./types.ts";
