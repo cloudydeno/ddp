@@ -1,12 +1,12 @@
 {
   "name": "@cloudydeno/ddp",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "license": "MIT",
   "imports": {
     "lib/": "./src/lib/",
-    "@std/assert": "jsr:@std/assert@^1.0.13",
+    "@std/assert": "jsr:@std/assert@^1",
     "@cloudydeno/ejson": "jsr:@cloudydeno/ejson@^0.1",
-    "@cloudydeno/opentelemetry": "jsr:@cloudydeno/opentelemetry@^0.10"
+    "@cloudydeno/opentelemetry": "jsr:@cloudydeno/opentelemetry@^0.11"
   },
   "exports": {
     "./random": "./src/lib/random.ts",
