@@ -134,6 +134,7 @@ export abstract class DdpSession {
               emitToSub(subscription, result);
             }
           })
+          // TODO: server error sanitizing
           .catch(err => subscription.error(err))
           .finally(() => span.end()));
       } break;
@@ -161,6 +162,7 @@ export abstract class DdpSession {
           }]), err => (console.error('method error:', err), [{
             msg: 'result',
             id: pkt.id,
+            // TODO: server error sanitizing
             error: {
               error: err.message,
               message: err.message,
@@ -298,7 +300,11 @@ function emitToSub(
           }
           break;
         case 'nosub':
-          sub.stop(packet.error);
+          if (packet.error) {
+            throw packet.error;
+          } else {
+            sub.stop();
+          }
           break;
         case 'added':
           sub.added(packet.collection, packet.id, packet.fields ?? {});

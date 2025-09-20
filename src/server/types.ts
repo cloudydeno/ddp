@@ -1,11 +1,18 @@
 import type { EJSONableProperty } from "@cloudydeno/ejson";
 
 import type { RandomStream } from "lib/random.ts";
-import type { ClientSentPacket, MeteorError, ServerSentSubscriptionPacket } from "lib/types.ts";
+import type { ClientSentPacket, MeteorError, ServerSentDocumentPacket } from "lib/types.ts";
 import type { DdpSession } from "./session.ts";
 import type { DdpSessionSubscription } from "./subscription.ts";
 
-export type PublishStream = ReadableStream<ServerSentSubscriptionPacket>;
+export type PublicationEvent = {
+  msg: 'ready';
+} | {
+  msg: 'nosub';
+  error?: unknown;
+} | ServerSentDocumentPacket;
+
+export type PublishStream = ReadableStream<PublicationEvent>;
 
 export type ConnectionHandler = (socker: DdpSession) => void;
 export type MethodHandler = (socket: DdpSession, params: EJSONableProperty[], random: RandomStream | null) => EJSONableProperty | Promise<EJSONableProperty>;
