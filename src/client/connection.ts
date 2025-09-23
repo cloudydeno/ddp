@@ -26,6 +26,13 @@ type SocketAttempt = {
   promise: Promise<void>;
 }
 
+type AuthInfo = {
+  id: string;
+  type: string;
+  token: string;
+  tokenExpires: Date;
+}
+
 const methodTracer = trace.getTracer('ddp.method');
 const subTracer = trace.getTracer('ddp.subscription');
 
@@ -36,13 +43,18 @@ export class DdpConnection implements Disposable {
     public readonly opts: ConnectionOptions,
   ) {
     if (opts.autoConnect) {
-      // TODO: autconnect
       this.#createSocket();
     }
   }
 
   private readonly collections: Map<string, RemoteCollection> = new Map;
   private readonly desiredSubs: Map<string, DesiredSubscription> = new Map;
+
+  public liveAuthInfo: LiveVariable<null | AuthInfo> = new LiveVariable(null);
+  /** Not reactive. Use liveAuthInfo.subscribe() to observe updates. */
+  public get userId(): string | null {
+    return this.liveAuthInfo.getSnapshot()?.id ?? null;
+  }
 
   public liveStatus: LiveVariable<ConnectionStatus> = new LiveVariable({
     connected: false,
@@ -75,7 +87,7 @@ export class DdpConnection implements Disposable {
         sub.ready.setSnapshot(false);
       }
     }
-    if (this.status.connected || this.status.status == 'connecting') {
+    if (this.status.connected || this.status.status !== 'offline') {
       this.patchStatus({
         connected: false,
         status: 'offline',
@@ -118,23 +130,29 @@ export class DdpConnection implements Disposable {
         console.error(`WARNING: DDP connection attempt failed, will retry:`, err.message);
       }
       // this.currentAttempt = null;
-      const backoffMillis = 10_000;
-      this.liveStatus.setSnapshot({
-        status: 'waiting',
-        connected: false,
-        retryCount: this.status.retryCount + 1,
-        reason: err.message,
-        retryTimeNumber: Date.now() + backoffMillis,
-      }
-    );
-      const timer = setTimeout(() => {
-        this.currentAttempt = null;
-        this.connect();
-      }, backoffMillis);
-      this.currentAttempt!.abortCtlr.signal.addEventListener('abort', () => {
-        clearTimeout(timer);
-      });
+      this.startWaitingTimer(this.status.retryCount + 1, this.opts.reconnectDelayMillis ?? 10_000, err.message);
+      // this.currentAttempt!.abortCtlr.signal.addEventListener('abort', () => {
+      //   clearTimeout(timer);
+      // });
     });
+  }
+
+  private waitingTimer: null | number = null;
+  private startWaitingTimer(retryCount: number, backoffMillis: number, reason: string) {
+    this.liveStatus.setSnapshot({
+      status: 'waiting',
+      connected: false,
+      retryCount: retryCount,
+      reason: reason,
+      retryTimeNumber: Date.now() + backoffMillis,
+    });
+    if (this.waitingTimer) {
+      clearTimeout(this.waitingTimer);
+    }
+    this.waitingTimer = setTimeout(() => {
+      this.currentAttempt = null;
+      this.#createSocket();
+    }, backoffMillis);
   }
 
   /**
@@ -304,6 +322,10 @@ export class DdpConnection implements Disposable {
     this.#createSocket();
   }
   disconnect() {
+    if (this.waitingTimer) {
+      clearTimeout(this.waitingTimer);
+      this.waitingTimer = null;
+    }
     if (this.status.status == 'offline') return;
     this.currentSocket?.writer?.close();
     this.currentSocket?.shutdown();
@@ -335,7 +357,38 @@ export class DdpConnection implements Disposable {
         .then(async ({ readable, writable }) => {
           ddp.writer = writable.getWriter();
           await runHandshake(ddp, readable as ReadableStream<string>);
-          ddp.runInboundLoop(readable as ReadableStream<string>); // throw away the promise (it's fiiine)
+
+          void ddp.runInboundLoop(readable as ReadableStream<string>)
+            .catch(err => {
+              console.log('TODO: Inbound loop threw', err);
+              abortCtlr.abort(`Inbound loop rejected: ${err.message}`);
+            })
+            .finally(() => {
+              if (this.status.status == 'connected' && this.opts.autoConnect) {
+                this.ensureNoActiveSocket();
+                this.startWaitingTimer(0, this.opts.reconnectDelayMillis ?? 5_000, 'Connection lost unexpectedly');
+              }
+            });
+
+          if (this.opts.fetchAuthFunc) {
+            try {
+              const authPayload = await this.opts.fetchAuthFunc();
+              const authResult = await ddp.callMethod<{
+                id: string;
+                type: string;
+                token: string;
+                tokenExpires: Date;
+              }>('login', [authPayload]);
+              this.liveAuthInfo.setSnapshot(authResult);
+            } catch (err) {
+              abortCtlr.abort('Login Failed');
+              this.liveAuthInfo.setSnapshot(null);
+              throw err;
+            }
+          } else {
+            this.liveAuthInfo.setSnapshot(null);
+          }
+
         }),
     })
     // const setupPromise = ;

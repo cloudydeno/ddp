@@ -20,14 +20,18 @@ export class DdpClientSocket {
   private readonly pendingSubs: Map<string, AsyncHandle<void>> = new Map;
   private readonly readySubs: Set<string> = new Set;
 
-  shutdown() {
-    const reason = new Error(`DDP socket is shutting down`);
+  shutdown(reason?: Error) {
+    reason ??= new Error(`DDP socket is shutting down`);
+    console.error(`DDP socket shutdown with reason:`, reason.message);
     for (const method of this.pendingMethods.values()) {
       method.fail(reason);
     }
+    this.pendingMethods.clear();
     for (const ping of this.pendingPings.values()) {
       ping.fail(reason);
     }
+    this.pendingPings.clear();
+    this.pendingSubs.clear();
   }
 
   async callMethod<T=EJSONableProperty>(name: string, params: EJSONableProperty[]): Promise<T> {
@@ -91,33 +95,46 @@ export class DdpClientSocket {
   }
 
   async runInboundLoop(readable: ReadableStream<string>): Promise<void> {
-    if (this.encapsulation == 'raw') {
-      for await (const chunk of readable) {
-        const packet = EJSON.parse(chunk) as ServerSentPacket;
-        try {
-          await this.handlePacket(packet);
-        } catch (thrown) {
-          const err = thrown as Error;
-          console.error('packet handle failed:', err);
-        }
-      }
-      return;
-    }
+    const pingTimer = setInterval(() => {
+      console.log(new Date, 'Sending ping');
+      this.ping().catch(() => {});
+    }, 45_000);
+    try {
 
-    for await (const chunk of readable) switch (chunk[0]) {
-      case 'o': throw new Error(`got second open?`);
-      case 'a': {
-        for (const pkt of JSON.parse(chunk.slice(1))) {
-          const packet = EJSON.parse(pkt) as ServerSentPacket;
-          await this.handlePacket(packet);
+      if (this.encapsulation == 'raw') {
+        for await (const chunk of readable) {
+          const packet = EJSON.parse(chunk) as ServerSentPacket;
+          try {
+            await this.handlePacket(packet);
+          } catch (thrown) {
+            const err = thrown as Error;
+            console.error('packet handle failed:', err);
+          }
         }
-        break;
+        return;
       }
-      case 'c': {
-        const [code, message] = JSON.parse(chunk.slice(1));
-        throw new Error(`DDP connection closed by server: ${message} [${code}]`);
+
+      for await (const chunk of readable) switch (chunk[0]) {
+        case 'o': throw new Error(`got second open?`);
+        case 'a': {
+          for (const pkt of JSON.parse(chunk.slice(1))) {
+            const packet = EJSON.parse(pkt) as ServerSentPacket;
+            await this.handlePacket(packet);
+          }
+          break;
+        }
+        case 'c': {
+          const [code, message] = JSON.parse(chunk.slice(1));
+          throw new Error(`DDP connection closed by server: ${message} [${code}]`);
+        }
+        default: throw new Error(`got unimpl packet ${JSON.stringify(chunk)}`);
       }
-      default: throw new Error(`got unimpl packet ${JSON.stringify(chunk)}`);
+
+    } catch (err: unknown) {
+      this.shutdown(err as Error);
+    } finally {
+      this.shutdown();
+      clearInterval(pingTimer);
     }
   }
 

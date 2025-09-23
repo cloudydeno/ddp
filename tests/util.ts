@@ -37,6 +37,7 @@ export function makeTestDialerFunc(serverIface: DdpInterface) {
     return Promise.resolve({
       readable: serverToClient.readable,
       writable: clientToServer.writable,
+      serverSession: server,
     });
   };
 }

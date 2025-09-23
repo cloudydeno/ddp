@@ -24,6 +24,9 @@ export type ConnectionOptions = {
   additionalHeaders?: HeadersInit;
   /** Custom callback to connect to the server, instead of WebSocketStream */
   dialerFunc?: DialerFunc;
+  /** Callback to prepare a login attempt for the server */
+  fetchAuthFunc?: () => Record<string,unknown> | Promise<Record<string,unknown>>;
+  reconnectDelayMillis?: number;
 }
 
 export type DialerFunc = (options: DialOptions) => Promise<{
