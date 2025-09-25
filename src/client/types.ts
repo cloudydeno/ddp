@@ -25,7 +25,7 @@ export type ConnectionOptions = {
   /** Custom callback to connect to the server, instead of WebSocketStream */
   dialerFunc?: DialerFunc;
   /** Callback to prepare a login attempt for the server */
-  fetchAuthFunc?: () => Record<string,unknown> | Promise<Record<string,unknown>>;
+  fetchAuthFunc?: () => null | Record<string,unknown> | Promise<null | Record<string,unknown>>;
   reconnectDelayMillis?: number;
 }
 

@@ -373,13 +373,17 @@ export class DdpConnection implements Disposable {
           if (this.opts.fetchAuthFunc) {
             try {
               const authPayload = await this.opts.fetchAuthFunc();
-              const authResult = await ddp.callMethod<{
-                id: string;
-                type: string;
-                token: string;
-                tokenExpires: Date;
-              }>('login', [authPayload]);
-              this.liveAuthInfo.setSnapshot(authResult);
+              if (authPayload) {
+                const authResult = await ddp.callMethod<{
+                  id: string;
+                  type: string;
+                  token: string;
+                  tokenExpires: Date;
+                }>('login', [authPayload]);
+                this.liveAuthInfo.setSnapshot(authResult);
+              } else {
+                this.liveAuthInfo.setSnapshot(null);
+              }
             } catch (err) {
               abortCtlr.abort('Login Failed');
               this.liveAuthInfo.setSnapshot(null);

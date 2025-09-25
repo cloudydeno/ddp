@@ -7,6 +7,7 @@ import type { DdpInterface } from "./interface.ts";
 import { PresentedCollection } from "./publishing.ts";
 import type { OutboundSubscription, PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
 import { DdpSessionSubscription } from "./subscription.ts";
+import { LiveVariable } from "lib/live-variable.ts";
 
 const methodtracer = trace.getTracer('ddp.method');
 const subtracer = trace.getTracer('ddp.subscription');
@@ -60,6 +61,16 @@ export abstract class DdpSession {
 
   protected readonly closeCtlr: AbortController = new AbortController();
   public get closeSignal(): AbortSignal { return this.closeCtlr.signal; }
+
+  readonly userIdLive: LiveVariable<string|null> = new LiveVariable(null);
+  get userId(): string | null {
+    return this.userIdLive.getSnapshot();
+  }
+  // TODO: this needs to rerun subs.
+  // https://github.com/meteor/meteor/blob/8eb67c1795f41bc6947c895ec9d49f4fc1de9c24/packages/ddp-server/livedata_server.js#L662
+  setUserId(userId: string): void {
+    this.userIdLive.setSnapshot(userId);
+  }
 
   public readonly id: string = Math.random().toString(16).slice(2);
   [Symbol.dispose](): void {
