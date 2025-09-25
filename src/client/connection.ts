@@ -74,7 +74,7 @@ export class DdpConnection implements Disposable {
 
   private currentAttempt: SocketAttempt | null = null;
   private currentSocket: DdpClientSocket | null = null;
-  private ensureNoActiveSocket(reason?: string) {
+  private ensureNoActiveSocket(reason: string, statusPatch: Partial<ConnectionStatus>) {
     if (this.currentAttempt) {
       // I don't think this needs to be an Error.
       // Leaving in for now in case the stack trace becomes helpful.
@@ -87,24 +87,20 @@ export class DdpConnection implements Disposable {
         sub.ready.setSnapshot(false);
       }
     }
-    if (this.status.connected || this.status.status !== 'offline') {
-      this.patchStatus({
-        connected: false,
-        status: 'offline',
-        reason,
-      });
+
+    const hasMismatch = Object
+      .entries(statusPatch)
+      .some(pair => this.status[pair[0] as keyof ConnectionStatus] != pair[1]);
+    if (hasMismatch) {
+      this.patchStatus(statusPatch);
     }
   }
   private switchToNewSocket(attempt: SocketAttempt) {
-    this.ensureNoActiveSocket();
-
+    this.ensureNoActiveSocket('switchToNewSocket', {
+      status: 'connecting',
+      connected: false,
+    });
     this.currentAttempt = attempt;
-    if (this.status.status !== 'connecting') {
-      this.patchStatus({
-        status: 'connecting',
-        connected: false,
-      });
-    }
 
     attempt.promise.then(() => {
       if (attempt != this.currentAttempt) return;
@@ -139,7 +135,7 @@ export class DdpConnection implements Disposable {
 
   private waitingTimer: null | number = null;
   private startWaitingTimer(retryCount: number, backoffMillis: number, reason: string) {
-    this.liveStatus.setSnapshot({
+    this.ensureNoActiveSocket('startWaitingTimer', {
       status: 'waiting',
       connected: false,
       retryCount: retryCount,
@@ -327,13 +323,18 @@ export class DdpConnection implements Disposable {
       this.waitingTimer = null;
     }
     if (this.status.status == 'offline') return;
-    this.currentSocket?.writer?.close();
-    this.currentSocket?.shutdown();
-    this.ensureNoActiveSocket(`client was manually disconnected`);
+    const socket = this.currentSocket;
+    // this.currentSocket?.writer?.close();
+    // this.currentSocket?.shutdown();
+    this.ensureNoActiveSocket(`client was manually disconnected`, {
+      connected: false,
+      status: 'offline',
+    });
+    socket?.writer?.close();
+    socket?.shutdown();
   }
 
   #createSocket() {
-    this.ensureNoActiveSocket();
     // if (this.currentSocket) throw new Error(`have socket already`);
     // this.currentStatus = { ...this.currentStatus, connected: false, status: 'connecting' };
     const ddp = new DdpClientSocket(
@@ -364,8 +365,7 @@ export class DdpConnection implements Disposable {
               abortCtlr.abort(`Inbound loop rejected: ${err.message}`);
             })
             .finally(() => {
-              if (this.status.status == 'connected' && this.opts.autoConnect) {
-                this.ensureNoActiveSocket();
+              if (this.currentSocket == ddp && this.opts.autoConnect) {
                 this.startWaitingTimer(0, this.opts.reconnectDelayMillis ?? 5_000, 'Connection lost unexpectedly');
               }
             });

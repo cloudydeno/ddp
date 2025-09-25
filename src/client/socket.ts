@@ -22,7 +22,7 @@ export class DdpClientSocket {
 
   shutdown(reason?: Error) {
     reason ??= new Error(`DDP socket is shutting down`);
-    console.error(`DDP socket shutdown with reason:`, reason.message);
+    // console.error(`DDP socket shutdown with reason:`, reason.message);
     for (const method of this.pendingMethods.values()) {
       method.fail(reason);
     }
@@ -96,8 +96,7 @@ export class DdpClientSocket {
 
   async runInboundLoop(readable: ReadableStream<string>): Promise<void> {
     const pingTimer = setInterval(() => {
-      console.log(new Date, 'Sending ping');
-      this.ping().catch(() => {});
+      // this.ping().catch(() => {});
     }, 45_000);
     try {
 
