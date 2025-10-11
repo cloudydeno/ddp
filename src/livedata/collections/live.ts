@@ -1,4 +1,4 @@
-import type { Collection, Cursor, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "../types.ts";
+import type { PartialCollectionApi, PartialCursorApi, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "../types.ts";
 import { checkMatch, makeReturnDoc } from "../document.ts";
 
 export abstract class LiveCollection {
@@ -60,8 +60,8 @@ export abstract class LiveCollection {
   }
 
   // private nextObserverId = 0;
-  private readonly queries: Set<LiveQuery<any>> = new Set;
-  addQuery(obs: LiveQuery<any>): void {
+  private readonly queries: Set<LiveQuery<HasId>> = new Set;
+  addQuery(obs: LiveQuery<HasId>): void {
     // const obsId = ++this.nextObserverId;
     this.queries.add(obs);
     obs.stopCtlr.signal.addEventListener('abort', () => {
@@ -80,7 +80,7 @@ export abstract class LiveCollection {
 
 }
 
-export class LiveCollectionApi<T extends HasId> implements Collection<T> {
+export class LiveCollectionApi<T extends HasId> implements PartialCollectionApi<T> {
   constructor(
     public readonly liveColl: LiveCollection,
   ) {}
@@ -96,28 +96,21 @@ export class LiveCollectionApi<T extends HasId> implements Collection<T> {
     return null;
   }
 
-  find(selector: Record<string,unknown> = {}, opts?: FindOpts): Cursor<T> {
+  find(selector: Record<string,unknown> = {}, opts?: FindOpts): PartialCursorApi<T> {
     return new LiveCursor<T>(this, selector, opts ?? {});
   }
 }
 
-class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
+class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterable<T> {
   constructor(
     private readonly coll: LiveCollectionApi<T>,
     private readonly selector: Record<string,unknown>,
     private readonly opts: FindOpts,
   ) {}
 
-  count(): number {
+  count(_applySkipLimit?: boolean): number {
     let count = 0;
     for (const _ of this) {
-      count++;
-    }
-    return count;
-  }
-  async countAsync(/*applySkipLimit?: boolean*/): Promise<number> {
-    let count = 0;
-    for await (const _ of this) {
       count++;
     }
     return count;
@@ -133,47 +126,17 @@ class LiveCursor<T extends HasId> implements Cursor<T>, Iterable<T> {
   fetch(): T[] {
     return Array.from(this);
   }
-  forEach(
-    callback: (doc: T, index: number, cursor: Cursor<T>) => void,
-    thisArg?: any
-  ): void {
-    let idx = 0;
-    for (const doc of this) {
-      callback.call(thisArg, doc, idx++, this);
-    }
-  }
-  map<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): M[] {
-    throw new Error("TODO: Method 'map' not implemented.");
-  }
-  observe(cbs: ObserveCallbacks<T>): ObserverHandle<T> {
+  observe(cbs: ObserveCallbacks<T>): ObserverHandle {
     const query = new LiveQuery<T>(this.coll, this.selector, this.opts, cbs);
     // this.coll.liveColl.addQuery(query);
     return {
-      collection: this.coll,
-      cursor: this,
       stop: () => {
         query.stopCtlr.abort();
       },
     };
   }
-  observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle<T> {
+  observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle {
     throw new Error("TODO: Method 'observeChanges' not implemented.");
-  }
-
-  fetchAsync(): Promise<T[]> {
-    return Promise.try(() => this.fetch());
-  }
-  forEachAsync(callback: (doc: T, index: number, cursor: Cursor<T>) => void, thisArg?: any): Promise<void> {
-    return Promise.try(() => this.forEach(callback, thisArg));
-  }
-  mapAsync<M>(callback: (doc: T, index: number, cursor: Cursor<T>) => M, thisArg?: any): Promise<M[]> {
-    return Promise.try(() => this.map(callback, thisArg));
-  }
-  observeAsync(callbacks: ObserveCallbacks<T>): Promise<ObserverHandle<T>> {
-    return Promise.try(() => this.observe(callbacks));
-  }
-  observeChangesAsync(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): Promise<ObserverHandle<T>> {
-    return Promise.try(() => this.observeChanges(callbacks, options));
   }
 }
 

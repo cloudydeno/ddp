@@ -1,7 +1,7 @@
-import type { HasId } from "../types.ts";
+import type { HasId, PartialCollectionApi } from "../types.ts";
 import { LiveCollection, LiveCollectionApi } from "./live.ts";
 import type { DdpConnection } from "../../client/connection.ts";
-import type { EJSONableProperty } from "@cloudydeno/ejson";
+// import type { EJSONableProperty } from "@cloudydeno/ejson";
 
 export class RemoteCollection extends LiveCollection {
   constructor(
@@ -17,14 +17,16 @@ export class RemoteCollection extends LiveCollection {
   }
 }
 
-export class RemoteCollectionApi<T extends HasId> extends LiveCollectionApi<T> {
+export class RemoteCollectionApi<T extends HasId> extends LiveCollectionApi<T> implements PartialCollectionApi<T> {
   constructor(private readonly remoteColl: RemoteCollection) {
     super(remoteColl);
   }
 
-  async insert(doc: T): Promise<EJSONableProperty> {
+  async insertAsync(doc: T): Promise<string> {
     // TODO: ensure randomSeed is sent if an ID was generated
-    return await this.remoteColl.client.callMethod(`/${this.remoteColl.name}/insert`, [doc]);
+    const resp = await this.remoteColl.client.callMethod(`/${this.remoteColl.name}/insert`, [doc]);
+    if (typeof resp !== 'string') throw new Error(`TODO: resp is not a string?`);
+    return resp;
   }
   // TODO: more
 }

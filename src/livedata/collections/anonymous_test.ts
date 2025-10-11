@@ -1,9 +1,10 @@
 import { assertEquals } from "@std/assert/equals";
 import { AnonymousCollection } from "./anonymous.ts";
+import { Collection } from "../facades.ts";
 
 Deno.test('AnonymousCollection inserts', () => {
   const coll = new AnonymousCollection();
-  const api = coll.getApi();
+  const api = new Collection(coll.getApi());
 
   assertEquals(api.find().count(), 0);
   api.insert({_id: 'one'});

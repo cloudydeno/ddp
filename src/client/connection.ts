@@ -4,12 +4,13 @@ import { SpanKind, trace } from "@cloudydeno/opentelemetry/pkg/api";
 import type { ServerSentSubscriptionPacket } from "../lib/types.ts";
 import { LiveVariable } from "../lib/live-variable.ts";
 
-import type { Collection, HasId } from "../livedata/types.ts";
+import type { PartialCollectionApi, HasId, CollectionApi } from "../livedata/types.ts";
 import { RemoteCollection } from "../livedata/collections/remote.ts";
 import { DdpClientSocket } from "./socket.ts";
 import { openWebsocketStream, runHandshake } from "./_open.ts";
 import type { ConnectionOptions, ConnectionStatus, DdpSubscription } from "./types.ts";
 import { type AsyncHandle, createAsyncHandle } from "./_async.ts";
+import { Collection } from "../livedata/facades.ts";
 
 type DesiredSubscription = {
   name: string;
@@ -166,9 +167,13 @@ export class DdpConnection implements Disposable {
     }
     return coll;
   }
-  public getCollection<T extends HasId>(collectionName: string): Collection<T> {
+  public getCollectionApi<T extends HasId>(collectionName: string): PartialCollectionApi<T> {
     const coll = this.grabCollection(collectionName);
     return coll.getApi<T>();
+  }
+  public getCollection<T extends HasId>(collectionName: string): CollectionApi<T> {
+    const coll = this.grabCollection(collectionName);
+    return new Collection(coll.getApi<T>());
   }
 
   callMethod<T=EJSONableProperty>(name: string, params: EJSONableProperty[]): Promise<T> {

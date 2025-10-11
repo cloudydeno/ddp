@@ -1,43 +1,97 @@
 import type { EJSONableProperty } from "@cloudydeno/ejson";
+
 export type FieldValue = EJSONableProperty;
 export type DocumentFields = Record<string, FieldValue>;
 
 export type HasId = { _id: string };
 export type DocumentWithId = DocumentFields & HasId;
 
-export interface Collection<T extends {_id: string}> {
-  findOneAsync(selector?: Record<string,unknown>, opts?: FindOpts): Promise<T | null>;
-  findOne(selector?: Record<string,unknown>, opts?: FindOpts): T | null;
-  find(selector?: Record<string,unknown>, opts?: FindOpts): Cursor<T>;
-}
-
 export interface FindOpts {
   fields?: Record<string, boolean>;
 }
+export interface UpdateOpts {
+  multi?: boolean;
+  upsert?: boolean;
+}
+export interface UpsertOpts {
+  multi?: boolean;
+}
+export interface UpsertResult {
+  numberAffected?: number;
+  insertedId?: string;
+}
 
-export type Cursor<T extends {_id: string}> = {
-  // [Symbol.iterator]: () => Generator<T>;
-  // count(applySkipLimit?: boolean): number;
-  // countAsync(applySkipLimit?: boolean): Promise<number>;
-  // fetch(): Array<T>;
-  // fetchAsync(): Promise<Array<T>>;
-  // forEach(): void;
-  // observe(cbs: ObserveCallbacks<T>): ObserverHandle<T>;
+// based on https://github.com/meteor/meteor/blob/devel/packages/mongo/mongo.d.ts
 
-  /**
-   * Returns the number of documents that match a query.
-   * @param applySkipLimit If set to `false`, the value returned will reflect the total number of matching documents, ignoring any value supplied for limit. (Default: true)
-   */
-  count(applySkipLimit?: boolean): number;
+export type OptionalId<TSchema extends HasId> = Omit<TSchema, '_id'> & { _id?: string };
+
+export interface CollectionApi<T extends HasId> extends AsyncCollection<T>, SyncCollection<T> {
+  find(selector?: Record<string,unknown>, opts?: FindOpts): CursorApi<T>;
+}
+
+export interface PartialCollectionApi<T extends HasId> extends Partial<AsyncCollection<T>>, Partial<SyncCollection<T>> {
+  find(selector?: Record<string,unknown>, opts?: FindOpts): PartialCursorApi<T>;
+}
+
+export interface AsyncCollection<T extends HasId> {
+  findOneAsync(selector?: Record<string,unknown>, opts?: FindOpts): Promise<T | null>;
+  insertAsync(
+    doc: OptionalId<T>,
+    callback?: (err?: Error, newId?: string) => void,
+  ): Promise<string>;
+  updateAsync(
+    selector: Record<string,unknown>,
+    modifier: Record<string,unknown>,
+    options?: UpdateOpts,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): Promise<number>;
+  upsertAsync(
+    selector: Record<string,unknown>,
+    modifier: Record<string,unknown>,
+    options?: UpsertOpts,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): Promise<UpsertResult>;
+  removeAsync(
+    selector: Record<string,unknown>,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): Promise<number>;
+}
+export interface SyncCollection<T extends HasId> {
+  findOne(selector?: Record<string,unknown>, opts?: FindOpts): T | null;
+  insert(
+    doc: OptionalId<T>,
+    callback?: (err?: Error, newId?: string) => void,
+  ): string;
+  update(
+    selector: Record<string,unknown>,
+    modifier: Record<string,unknown>,
+    options?: UpdateOpts,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): number;
+  upsert(
+    selector: Record<string,unknown>,
+    modifier: Record<string,unknown>,
+    options?: UpsertOpts,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): UpsertResult;
+  remove(
+    selector: Record<string,unknown>,
+    callback?: (err?: Error, numberAffected?: number) => void,
+  ): number;
+}
+
+export interface CursorApi<T extends HasId> extends AsyncCursor<T>, SyncCursor<T> {
+}
+
+export interface PartialCursorApi<T extends HasId> extends Partial<AsyncCursor<T>>, Partial<SyncCursor<T>> {
+}
+
+export type AsyncCursor<T extends HasId> = {
   /**
    * Returns the number of documents that match a query.
    * @param applySkipLimit If set to `false`, the value returned will reflect the total number of matching documents, ignoring any value supplied for limit. (Default: true)
    */
   countAsync(applySkipLimit?: boolean): Promise<number>;
-  /**
-   * Return all matching documents as an Array.
-   */
-  fetch(): Array<T>;
   /**
    * Return all matching documents as an Array.
    */
@@ -48,58 +102,24 @@ export type Cursor<T extends {_id: string}> = {
    * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
    * @param thisArg An object which will be the value of `this` inside `callback`.
    */
-  forEach(
-    callback: (doc: T, index: number, cursor: Cursor<T>) => void,
-    thisArg?: any
-  ): void;
-  /**
-   * Call `callback` once for each matching document, sequentially and
-   *          synchronously.
-   * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
-   * @param thisArg An object which will be the value of `this` inside `callback`.
-   */
-  forEachAsync(
-    callback: (doc: T, index: number, cursor: Cursor<T>) => void,
-    thisArg?: any
+  forEachAsync<Tthis=undefined>(
+    callback: (this: Tthis, doc: T, index: number, cursor: CursorApi<T>) => void,
+    thisArg?: Tthis
   ): Promise<void>;
   /**
    * Map callback over all matching documents. Returns an Array.
    * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
    * @param thisArg An object which will be the value of `this` inside `callback`.
    */
-  map<M>(
-    callback: (doc: T, index: number, cursor: Cursor<T>) => M,
-    thisArg?: any
-  ): Array<M>;
-  /**
-   * Map callback over all matching documents. Returns an Array.
-   * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
-   * @param thisArg An object which will be the value of `this` inside `callback`.
-   */
-  mapAsync<M>(
-    callback: (doc: T, index: number, cursor: Cursor<T>) => M,
-    thisArg?: any
+  mapAsync<M,Tthis=undefined>(
+    callback: (this: Tthis, doc: T, index: number, cursor: CursorApi<T>) => M,
+    thisArg?: Tthis
   ): Promise<Array<M>>;
   /**
    * Watch a query. Receive callbacks as the result set changes.
    * @param callbacks Functions to call to deliver the result set as it changes
    */
-  observe(callbacks: ObserveCallbacks<T>): ObserverHandle<T>;
-  /**
-   * Watch a query. Receive callbacks as the result set changes.
-   * @param callbacks Functions to call to deliver the result set as it changes
-   */
-  observeAsync(callbacks: ObserveCallbacks<T>): Promise<ObserverHandle<T>>;
-  /**
-   * Watch a query. Receive callbacks as the result set changes. Only the differences between the old and new documents are passed to the callbacks.
-   * @param callbacks Functions to call to deliver the result set as it changes
-   */
-  observeChanges(
-    callbacks: ObserveChangesCallbacks<T>,
-    options?: { nonMutatingCallbacks?: boolean | undefined }
-  ): ObserverHandle<T>;
-  [Symbol.iterator](): Iterator<T>;
-  [Symbol.asyncIterator](): AsyncIterator<T>;
+  observeAsync(callbacks: ObserveCallbacks<T>): Promise<ObserverHandle/*<T>*/>;
   /**
    * Watch a query. Receive callbacks as the result set changes. Only the differences between the old and new documents are passed to the callbacks.
    * @param callbacks Functions to call to deliver the result set as it changes
@@ -108,13 +128,60 @@ export type Cursor<T extends {_id: string}> = {
   observeChangesAsync(
     callbacks: ObserveChangesCallbacks<T>,
     options?: { nonMutatingCallbacks?: boolean | undefined }
-  ): Promise<ObserverHandle<T>>;
+  ): Promise<ObserverHandle/*<T>*/>;
 };
 
-export type ObserverHandle<T extends {_id: string}> = {
+
+export type SyncCursor<T extends HasId> = {
+  /**
+   * Returns the number of documents that match a query.
+   * @param applySkipLimit If set to `false`, the value returned will reflect the total number of matching documents, ignoring any value supplied for limit. (Default: true)
+   */
+  count(applySkipLimit?: boolean): number;
+  /**
+   * Return all matching documents as an Array.
+   */
+  fetch(): Array<T>;
+  /**
+   * Call `callback` once for each matching document, sequentially and
+   *          synchronously.
+   * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
+   * @param thisArg An object which will be the value of `this` inside `callback`.
+   */
+  forEach<Tthis=undefined>(
+    callback: (this: Tthis, doc: T, index: number, cursor: CursorApi<T>) => void,
+    thisArg?: Tthis
+  ): void;
+  /**
+   * Map callback over all matching documents. Returns an Array.
+   * @param callback Function to call. It will be called with three arguments: the document, a 0-based index, and <em>cursor</em> itself.
+   * @param thisArg An object which will be the value of `this` inside `callback`.
+   */
+  map<M,Tthis=undefined>(
+    callback: (this: Tthis, doc: T, index: number, cursor: CursorApi<T>) => M,
+    thisArg?: Tthis
+  ): Array<M>;
+  /**
+   * Watch a query. Receive callbacks as the result set changes.
+   * @param callbacks Functions to call to deliver the result set as it changes
+   */
+  observe(callbacks: ObserveCallbacks<T>): ObserverHandle/*<T>*/;
+  /**
+   * Watch a query. Receive callbacks as the result set changes. Only the differences between the old and new documents are passed to the callbacks.
+   * @param callbacks Functions to call to deliver the result set as it changes
+   */
+  observeChanges(
+    callbacks: ObserveChangesCallbacks<T>,
+    options?: { nonMutatingCallbacks?: boolean | undefined }
+  ): ObserverHandle/*<T>*/;
+  [Symbol.iterator](): Iterator<T>;
+  [Symbol.asyncIterator](): AsyncIterator<T>;
+};
+
+export type ObserverHandle/*<T extends {_id: string}>*/ = {
   stop(): void;
-  readonly collection: Collection<T>;
-  readonly cursor: Cursor<T>;
+  // readonly collection: CollectionApi<T>;
+  // readonly cursor: CursorApi<T>;
 }
 
 // export type ObserveCallbacks<T> = {
