@@ -8,7 +8,7 @@ import type { PartialCollectionApi, HasId, CollectionApi } from "../livedata/typ
 import { RemoteCollection } from "../livedata/collections/remote.ts";
 import { DdpClientSocket } from "./socket.ts";
 import { openWebsocketStream, runHandshake } from "./_open.ts";
-import type { ConnectionOptions, ConnectionStatus, DdpSubscription } from "./types.ts";
+import type { CallMethodOpts, ConnectionOptions, ConnectionStatus, DdpSubscription } from "./types.ts";
 import { type AsyncHandle, createAsyncHandle } from "./_async.ts";
 import { Collection } from "../livedata/facades.ts";
 
@@ -176,7 +176,7 @@ export class DdpConnection implements Disposable {
     return new Collection(coll.getApi<T>());
   }
 
-  callMethod<T=EJSONableProperty>(name: string, params: EJSONableProperty[]): Promise<T> {
+  callMethod<T=EJSONableProperty>(name: string, params: EJSONableProperty[], opts: CallMethodOpts = {}): Promise<T> {
     const methodId = Math.random().toString(16).slice(2);
     const span = name == 'OTLP/v1/traces' ? null : methodTracer.startSpan(name, {
       kind: SpanKind.CLIENT,
@@ -193,7 +193,7 @@ export class DdpConnection implements Disposable {
     const async = createAsyncHandle<T>(span);
 
     if (this.currentSocket) {
-      this.currentSocket.sendMethod(async, methodId, name, params);
+      this.currentSocket.sendMethod(async, methodId, name, params, opts);
     } else {
       this.offlineQueue.push({
         op: 'method', methodId,

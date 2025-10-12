@@ -3,6 +3,7 @@ import { trace, SpanStatusCode, context, propagation, type Context } from "@clou
 
 import type { ClientSentPacket, ServerSentSubscriptionPacket, ServerSentPacket } from "lib/types.ts";
 import { type AsyncHandle, createAsyncHandle } from "./_async.ts";
+import type { CallMethodOpts } from "./types.ts";
 
 export class DdpClientSocket {
   constructor(
@@ -40,7 +41,13 @@ export class DdpClientSocket {
     await this.sendMethod(async, methodId, name, params);
     return await async.promise;
   }
-  sendMethod<T=EJSONableProperty>(async: AsyncHandle<T>, methodId: string, name: string, params: EJSONableProperty[]): Promise<void> {
+  sendMethod<T=EJSONableProperty>(
+    async: AsyncHandle<T>,
+    methodId: string,
+    name: string,
+    params: EJSONableProperty[],
+    opts: CallMethodOpts = {},
+  ): Promise<void> {
     if (this.pendingMethods.has(methodId)) {
       throw new Error(`BUG: duplicated methodId`);
     }
@@ -52,6 +59,7 @@ export class DdpClientSocket {
       id: methodId,
       method: name,
       params: params,
+      randomSeed: opts.randomSeed,
     }, async.span
       ? trace.setSpan(context.active(), async.span)
       : context.active()

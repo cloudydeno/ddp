@@ -45,4 +45,8 @@ export interface DdpSubscription extends Disposable {
   readonly subId: string;
   readonly liveReady: LiveVariable<boolean>;
   stop(): void;
-}
+};
+
+export type CallMethodOpts = {
+  randomSeed?: string;
+};
