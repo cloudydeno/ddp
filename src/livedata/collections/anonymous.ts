@@ -41,7 +41,7 @@ export class AnonymousCollectionApi<T extends HasId> extends LiveCollectionApi<T
     throw new Error("TODO: Method 'update' not implemented.");
   }
 
-  upsert(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpsertOpts): UpsertResult {
+  upsert(_selector: Record<string, unknown>, _modifier: Record<string, unknown>, _options?: UpsertOpts): UpsertResult {
     throw new Error("TODO: Method 'upsert' not implemented.");
   }
 
