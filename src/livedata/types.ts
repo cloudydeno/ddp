@@ -26,6 +26,7 @@ export interface UpsertResult {
 export type OptionalId<TSchema extends HasId> = Omit<TSchema, '_id'> & { _id?: string };
 
 export interface CollectionApi<T extends HasId> extends AsyncCollection<T>, SyncCollection<T> {
+  get collectionName(): string | null;
   find(selector?: Record<string,unknown>, opts?: FindOpts): CursorApi<T>;
 }
 
@@ -34,49 +35,43 @@ export interface PartialCollectionApi<T extends HasId> extends Partial<AsyncColl
 }
 
 export interface AsyncCollection<T extends HasId> {
+  get collectionName(): string | null;
   findOneAsync(selector?: Record<string,unknown>, opts?: FindOpts): Promise<T | null>;
   insertAsync(
     doc: OptionalId<T>,
-    callback?: (err?: Error, newId?: string) => void,
   ): Promise<string>;
   updateAsync(
     selector: Record<string,unknown>,
     modifier: Record<string,unknown>,
     options?: UpdateOpts,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): Promise<number>;
   upsertAsync(
     selector: Record<string,unknown>,
     modifier: Record<string,unknown>,
     options?: UpsertOpts,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): Promise<UpsertResult>;
   removeAsync(
     selector: Record<string,unknown>,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): Promise<number>;
 }
 export interface SyncCollection<T extends HasId> {
+  get collectionName(): string | null;
   findOne(selector?: Record<string,unknown>, opts?: FindOpts): T | null;
   insert(
     doc: OptionalId<T>,
-    callback?: (err?: Error, newId?: string) => void,
   ): string;
   update(
     selector: Record<string,unknown>,
     modifier: Record<string,unknown>,
     options?: UpdateOpts,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): number;
   upsert(
     selector: Record<string,unknown>,
     modifier: Record<string,unknown>,
     options?: UpsertOpts,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): UpsertResult;
   remove(
     selector: Record<string,unknown>,
-    callback?: (err?: Error, numberAffected?: number) => void,
   ): number;
 }
 

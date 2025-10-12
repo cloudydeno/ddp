@@ -1,6 +1,104 @@
 import type { HasId, FindOpts, OptionalId, UpdateOpts, UpsertOpts, UpsertResult, CollectionApi, CursorApi, PartialCollectionApi, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle, PartialCursorApi } from "./types.ts";
 
 /**
+ * Wraps a Collection implementation to provide all possible methods.
+ * Async methods will fall back to sync implementations if needed.
+ *
+ * If a called method is not implemented by the low level collection,
+ * an Error will be thrown to the caller.
+ */
+export class Collection<T extends HasId> implements CollectionApi<T> {
+  constructor(
+    private readonly backingApi: PartialCollectionApi<T>,
+    private readonly cursorClass = Cursor,
+  ) {}
+  get collectionName(): string | null {
+    return this.backingApi.collectionName ?? null;
+  }
+  find(selector?: Record<string, unknown>, opts?: FindOpts): CursorApi<T> {
+    return new this.cursorClass(this.backingApi.find(selector, opts));
+  }
+
+  async findOneAsync(selector?: Record<string, unknown>, opts?: FindOpts): Promise<T | null> {
+    if (this.backingApi.findOneAsync) {
+      return this.backingApi.findOneAsync(selector, opts);
+    }
+    const cursor = this.find(selector, {...opts});
+    for await (const doc of cursor) {
+      return doc;
+    }
+    return null;
+  }
+  insertAsync(doc: OptionalId<T>, callback?: unknown): Promise<string> {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.insertAsync) {
+      return this.backingApi.insertAsync(doc);
+    }
+    return Promise.try(() => this.insert(doc));
+  }
+  updateAsync(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpdateOpts, callback?: unknown): Promise<number> {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.updateAsync) {
+      return this.backingApi.updateAsync(selector, modifier, options);
+    }
+    return Promise.try(() => this.update(selector, modifier, options));
+  }
+  upsertAsync(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpsertOpts, callback?: unknown): Promise<UpsertResult> {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.upsertAsync) {
+      return this.backingApi.upsertAsync(selector, modifier, options);
+    }
+    return Promise.try(() => this.upsert(selector, modifier, options));
+  }
+  removeAsync(selector: Record<string, unknown>, callback?: unknown): Promise<number> {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.removeAsync) {
+      return this.backingApi.removeAsync(selector);
+    }
+    return Promise.try(() => this.remove(selector));
+  }
+
+  findOne(selector?: Record<string, unknown>, opts?: FindOpts): T | null {
+    if (this.backingApi.findOne) {
+      return this.backingApi.findOne(selector, opts);
+    }
+    const cursor = this.find(selector, {...opts});
+    for (const doc of cursor) {
+      return doc;
+    }
+    return null;
+  }
+  insert(doc: OptionalId<T>, callback?: unknown): string {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.insert) {
+      return this.backingApi.insert(doc);
+    }
+    throw new Error("Method 'insert' not implemented.");
+  }
+  update(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpdateOpts, callback?: unknown): number {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.update) {
+      return this.backingApi.update(selector, modifier, options);
+    }
+    throw new Error("Method 'update' not implemented.");
+  }
+  upsert(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpsertOpts, callback?: unknown): UpsertResult {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.upsert) {
+      return this.backingApi.upsert(selector, modifier, options);
+    }
+    throw new Error("Method 'upsert' not implemented.");
+  }
+  remove(selector: Record<string, unknown>, callback?: unknown): number {
+    if (callback) throw new Error(`callback functions are not implemented by this DDP library`);
+    if (this.backingApi.remove) {
+      return this.backingApi.remove(selector);
+    }
+    throw new Error("Method 'remove' not implemented.");
+  }
+}
+
+/**
  * Wraps a Cursor implementation to provide all possible methods.
  * Async methods will fall back to sync implementations if needed.
  *
@@ -152,92 +250,5 @@ export class Cursor<T extends HasId> implements CursorApi<T> {
       return this.backingApi[Symbol.iterator]!();
     }
     throw new Error("Method [Symbol.iterator] not implemented.");
-  }
-}
-
-/**
- * Wraps a Collection implementation to provide all possible methods.
- * Async methods will fall back to sync implementations if needed.
- *
- * If a called method is not implemented by the low level collection,
- * an Error will be thrown to the caller.
- */
-export class Collection<T extends HasId> implements CollectionApi<T> {
-  constructor(
-    private readonly backingApi: PartialCollectionApi<T>,
-    private readonly cursorClass = Cursor,
-  ) {}
-  find(selector?: Record<string, unknown>, opts?: FindOpts): CursorApi<T> {
-    return new this.cursorClass(this.backingApi.find(selector, opts));
-  }
-
-  async findOneAsync(selector?: Record<string, unknown>, opts?: FindOpts): Promise<T | null> {
-    if (this.backingApi.findOneAsync) {
-      return this.backingApi.findOneAsync(selector, opts);
-    }
-    const cursor = this.find(selector, {...opts});
-    for await (const doc of cursor) {
-      return doc;
-    }
-    return null;
-  }
-  insertAsync(doc: OptionalId<T>, callback?: (err?: Error, newId?: string) => void): Promise<string> {
-    if (this.backingApi.insertAsync) {
-      return this.backingApi.insertAsync(doc, callback);
-    }
-    return Promise.try(() => this.insert(doc, callback));
-  }
-  updateAsync(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpdateOpts, callback?: (err?: Error, numberAffected?: number) => void): Promise<number> {
-    if (this.backingApi.updateAsync) {
-      return this.backingApi.updateAsync(selector, modifier, options, callback);
-    }
-    return Promise.try(() => this.update(selector, modifier, options, callback));
-  }
-  upsertAsync(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpsertOpts, callback?: (err?: Error, numberAffected?: number) => void): Promise<UpsertResult> {
-    if (this.backingApi.upsertAsync) {
-      return this.backingApi.upsertAsync(selector, modifier, options, callback);
-    }
-    return Promise.try(() => this.upsert(selector, modifier, options, callback));
-  }
-  removeAsync(selector: Record<string, unknown>, callback?: (err?: Error, numberAffected?: number) => void): Promise<number> {
-    if (this.backingApi.removeAsync) {
-      return this.backingApi.removeAsync(selector, callback);
-    }
-    return Promise.try(() => this.remove(selector, callback));
-  }
-
-  findOne(selector?: Record<string, unknown>, opts?: FindOpts): T | null {
-    if (this.backingApi.findOne) {
-      return this.backingApi.findOne(selector, opts);
-    }
-    const cursor = this.find(selector, {...opts});
-    for (const doc of cursor) {
-      return doc;
-    }
-    return null;
-  }
-  insert(doc: OptionalId<T>, callback?: (err?: Error, newId?: string) => void): string {
-    if (this.backingApi.insert) {
-      return this.backingApi.insert(doc, callback);
-    }
-    throw new Error("Method 'insert' not implemented.");
-  }
-  update(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpdateOpts, callback?: (err?: Error, numberAffected?: number) => void): number {
-    if (this.backingApi.update) {
-      return this.backingApi.update(selector, modifier, options, callback);
-    }
-    throw new Error("Method 'update' not implemented.");
-  }
-  upsert(selector: Record<string, unknown>, modifier: Record<string, unknown>, options?: UpsertOpts, callback?: (err?: Error, numberAffected?: number) => void): UpsertResult {
-    if (this.backingApi.upsert) {
-      return this.backingApi.upsert(selector, modifier, options, callback);
-    }
-    throw new Error("Method 'upsert' not implemented.");
-  }
-  remove(selector: Record<string, unknown>, callback?: (err?: Error, numberAffected?: number) => void): number {
-    if (this.backingApi.remove) {
-      return this.backingApi.remove(selector, callback);
-    }
-    throw new Error("Method 'remove' not implemented.");
   }
 }

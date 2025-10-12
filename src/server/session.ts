@@ -68,7 +68,9 @@ export abstract class DdpSession {
   }
   // TODO: this needs to rerun subs.
   // https://github.com/meteor/meteor/blob/8eb67c1795f41bc6947c895ec9d49f4fc1de9c24/packages/ddp-server/livedata_server.js#L662
-  setUserId(userId: string): void {
+  setUserId(userId: string | null): void {
+    if (userId !== null && typeof userId !== "string") throw new Error(
+      `setUserId must be called on string or null, not ${typeof userId}`);
     this.userIdLive.setSnapshot(userId);
   }
 
