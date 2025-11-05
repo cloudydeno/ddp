@@ -57,7 +57,7 @@ export class DdpInterface {
     return await handler(socket, params, random);
   }
 
-  async callSubscribe(sub: DdpSessionSubscription, name: string, params: EJSONableProperty[]): Promise<void | PublishStream[]> {
+  async callSubscribe(sub: DdpSessionSubscription, name: string, params: EJSONableProperty[]): Promise<void | PublishStream[] | PublishStream> {
     const handler = this.publications.get(name);
     if (!handler) {
       throw new Error(`unimplemented sub: "${name}"`);

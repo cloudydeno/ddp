@@ -145,6 +145,8 @@ export abstract class DdpSession {
           .then(result => {
             if (Array.isArray(result)) {
               emitToSub(subscription, result);
+            } else if (result) {
+              emitToSub(subscription, [result]);
             }
           })
           // TODO: server error sanitizing

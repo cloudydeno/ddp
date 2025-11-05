@@ -16,7 +16,7 @@ export type PublishStream = ReadableStream<PublicationEvent>;
 
 export type ConnectionHandler = (socker: DdpSession) => void;
 export type MethodHandler = (socket: DdpSession, params: EJSONableProperty[], random: RandomStream | null) => EJSONableProperty | Promise<EJSONableProperty>;
-export type PublicationHandler = (socket: DdpSessionSubscription, params: EJSONableProperty[]) => Promise<void | PublishStream[]> | void | PublishStream[];
+export type PublicationHandler = (socket: DdpSessionSubscription, params: EJSONableProperty[]) => Promise<void | PublishStream[] | PublishStream> | void | PublishStream[] | PublishStream;
 
 // We add an extra field on DDP requests for distributed tracing.
 // This is compatible with the meteor package "danopia:opentelemetry".
