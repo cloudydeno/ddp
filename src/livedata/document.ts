@@ -33,11 +33,11 @@ export function checkMatch(selector: Record<string,unknown>, docId: string, docF
 export function makeReturnDoc<T extends HasId>(_id: string, original: T, opts: FindOpts): T {
   // const cloned = EJSON.clone(original);
 
-  const fieldsSpec = (opts?.fields ?? {}) as Record<keyof T, boolean|undefined>;
+  const fieldsSpec = (opts?.fields ?? {}) as Record<keyof T, boolean|0|1|undefined>;
   const subset: Partial<T> = {};
   let includeOthers = true;
   for (const pair of Object.entries(fieldsSpec)) {
-    if (pair[1] === true) {
+    if (pair[1] === true || pair[1] === 1) {
       includeOthers = false;
       if (pair[0] == '_id') {
         subset['_id'] = _id;

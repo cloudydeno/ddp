@@ -7,7 +7,7 @@ export type HasId = { _id: string };
 export type DocumentWithId = DocumentFields & HasId;
 
 export interface FindOpts {
-  fields?: Record<string, boolean>;
+  fields?: Record<string, boolean | 0 | 1>;
 }
 export interface UpdateOpts {
   multi?: boolean;
