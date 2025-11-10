@@ -1,33 +1,4 @@
-import type { DocumentFields, FieldValue, FindOpts, HasId } from "./types.ts";
-
-/** @TODO replace impl with npm:sift */
-export function checkMatch(selector: Record<string,unknown>, docId: string, docFields: DocumentFields): boolean {
-  for (const [field, spec] of Object.entries(selector)) {
-    if (field.startsWith('$')) throw new Error(`TODO: selectors 1`);
-    // console.log({spec, selector})
-    if (Object.keys(spec as {_:1}).some(x => x.startsWith('$'))) throw new Error(`TODO: selectors 2`);
-    if (field == '_id') {
-      if (spec !== docId) return false;
-      continue;
-    }
-    let fieldValue: FieldValue = null;
-    if (field.includes('.')) {
-      // throw new Error(`TODO: paths! ${field}`);
-      fieldValue = docFields;
-      for (const part of field.split('.')) {
-        fieldValue = ((fieldValue as Record<string,FieldValue>)[part] as Record<string,FieldValue>) ?? {};
-      }
-    } else {
-      fieldValue = docFields[field];
-    }
-    if (typeof spec == 'string' || typeof spec == 'number') {
-      if (spec !== fieldValue) return false;
-      continue;
-    }
-    throw new Error(`TODO: selectors! (using sift)`);
-  }
-  return true;
-}
+import type { FindOpts, HasId } from "./types.ts";
 
 /** Clones a document using the 'fields' subset. */
 export function makeReturnDoc<T extends HasId>(_id: string, original: T, opts: FindOpts): T {

@@ -1,5 +1,9 @@
+import sift from "sift";
+
 import type { PartialCollectionApi, PartialCursorApi, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "../types.ts";
-import { checkMatch, makeReturnDoc } from "../document.ts";
+import { makeReturnDoc } from "../document.ts";
+
+type FilterFunc = (item: unknown, key?: string | number | undefined, owner?: unknown) => boolean;
 
 export abstract class LiveCollection {
   public readonly fields: Map<string,DocumentFields> = new Map;
@@ -15,7 +19,7 @@ export abstract class LiveCollection {
         continue;
       }
 
-      const matchResult = checkMatch(query.selector, id, fields);
+      const matchResult = query.selector({ id, ...fields });
       if (matchResult) {
         // if (query.cursor.skip || query.cursor.limit) {
         //   queriesToRecompute.push(qid);
@@ -52,7 +56,7 @@ export abstract class LiveCollection {
         continue;
       }
 
-      const matchResult = checkMatch(query.selector, id, prevFields);
+      const matchResult = query.selector({_id: id, ...prevFields});
       if (matchResult) {
         query.cbs.removed?.(makeReturnDoc(id, prevFields as HasId, query.opts));
       }
@@ -69,10 +73,10 @@ export abstract class LiveCollection {
     })
   }
 
-  *findGenerator<T extends HasId>(selector: Record<string,unknown>, opts: FindOpts): Generator<T> {
+  *findGenerator<T extends HasId>(selector: FilterFunc, opts: FindOpts): Generator<T> {
     // if (opts.sort) throw new Error(`TODO: find sorting`);
     for (const [_id, fields] of this.fields) {
-      if (checkMatch(selector, _id, fields)) {
+      if (selector({_id, ...fields})) {
         yield makeReturnDoc(_id, fields as T, opts);
       }
     }
@@ -90,7 +94,7 @@ export class LiveCollectionApi<T extends HasId> implements PartialCollectionApi<
   }
 
   findOne(selector: Record<string,unknown> = {}, opts: FindOpts = {}): T | null {
-    for (const doc of this.liveColl.findGenerator<T>(selector, opts)) {
+    for (const doc of this.liveColl.findGenerator<T>(sift.default(selector), opts)) {
       return doc;
     }
     return null;
@@ -106,7 +110,10 @@ export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterabl
     private readonly coll: LiveCollectionApi<T>,
     private readonly selector: Record<string,unknown>,
     private readonly opts: FindOpts,
-  ) {}
+  ) {
+    this.filterFunc = sift.default(this.selector);
+  }
+  private readonly filterFunc: FilterFunc;
 
   count(_applySkipLimit?: boolean): number {
     let count = 0;
@@ -117,7 +124,7 @@ export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterabl
   }
 
   [Symbol.iterator](): Iterator<T> {
-    return this.coll.liveColl.findGenerator<T>(this.selector, this.opts);
+    return this.coll.liveColl.findGenerator<T>(this.filterFunc, this.opts);
   }
   async *[Symbol.asyncIterator](): AsyncIterator<T> {
     for (const x of this) yield x;
@@ -127,7 +134,7 @@ export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterabl
     return Array.from(this);
   }
   observe(cbs: ObserveCallbacks<T>): ObserverHandle {
-    const query = new LiveQuery<T>(this.coll, this.selector, this.opts, cbs);
+    const query = new LiveQuery<T>(this.coll, sift.default(this.selector), this.opts, cbs);
     // this.coll.liveColl.addQuery(query);
     return {
       stop: () => {
@@ -143,7 +150,7 @@ export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterabl
 export class LiveQuery<T extends HasId> {
   constructor(
     public readonly coll: LiveCollectionApi<T>,
-    public readonly selector: Record<string,unknown>,
+    public readonly selector: FilterFunc,
     public readonly opts: FindOpts,
     public readonly cbs: ObserveCallbacks<T>,
   ) {
