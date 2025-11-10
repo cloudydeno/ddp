@@ -167,6 +167,9 @@ export class Cursor<T extends HasId> implements CursorApi<T> {
     if (this.backingApi.observeChangesAsync) {
       return this.backingApi.observeChangesAsync(callbacks, options);
     }
+    if (this.backingApi.observeAsync) {
+      return this.backingApi.observeAsync(observeCbsToChanges(callbacks));
+    }
     return Promise.try(() => this.observeChanges(callbacks, options));
   }
   [Symbol.asyncIterator](): AsyncIterator<T> {
@@ -243,6 +246,9 @@ export class Cursor<T extends HasId> implements CursorApi<T> {
     if (this.backingApi.observeChanges) {
       return this.backingApi.observeChanges(callbacks, options);
     }
+    if (this.backingApi.observe) {
+      return this.backingApi.observe(observeCbsToChanges(callbacks));
+    }
     throw new Error("Method observeChanges not implemented.");
   }
   [Symbol.iterator](): Iterator<T> {
@@ -251,4 +257,18 @@ export class Cursor<T extends HasId> implements CursorApi<T> {
     }
     throw new Error("Method [Symbol.iterator] not implemented.");
   }
+}
+
+function observeCbsToChanges<T extends HasId>(callbacks: ObserveChangesCallbacks<T>): ObserveCallbacks<T> {
+  return {
+    added: callbacks.added ? ({_id,...fields}) => {
+      callbacks.added?.(_id, fields as T);
+    } : undefined,
+    changed: callbacks.changed ? ({_id,...fields}) => {
+      callbacks.changed?.(_id, fields as T);
+    } : undefined,
+    removed: callbacks.removed ? ({_id}) => {
+      callbacks.removed?.(_id);
+    } : undefined,
+  };
 }

@@ -101,7 +101,7 @@ export class LiveCollectionApi<T extends HasId> implements PartialCollectionApi<
   }
 }
 
-class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterable<T> {
+export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterable<T> {
   constructor(
     private readonly coll: LiveCollectionApi<T>,
     private readonly selector: Record<string,unknown>,
@@ -135,12 +135,12 @@ class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterable<T> {
       },
     };
   }
-  observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle {
-    throw new Error("TODO: Method 'observeChanges' not implemented.");
-  }
+  // observeChanges(callbacks: ObserveChangesCallbacks<T>, options?: { nonMutatingCallbacks?: boolean | undefined; }): ObserverHandle {
+  //   throw new Error("TODO: Method 'observeChanges' not implemented.");
+  // }
 }
 
-class LiveQuery<T extends HasId> {
+export class LiveQuery<T extends HasId> {
   constructor(
     public readonly coll: LiveCollectionApi<T>,
     public readonly selector: Record<string,unknown>,
