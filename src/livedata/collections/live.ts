@@ -1,6 +1,6 @@
 import sift from "sift";
 
-import type { PartialCollectionApi, PartialCursorApi, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserveChangesCallbacks, ObserverHandle } from "../types.ts";
+import type { PartialCollectionApi, PartialCursorApi, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserverHandle } from "../types.ts";
 import { makeReturnDoc } from "../document.ts";
 
 type FilterFunc = (item: unknown, key?: string | number | undefined, owner?: unknown) => boolean;
@@ -9,6 +9,7 @@ export abstract class LiveCollection {
   public readonly fields: Map<string,DocumentFields> = new Map;
 
   addDocument(id: string, fields: DocumentFields): void {
+    if (this.fields.has(id)) throw new Error(`BUG: ID "${id}" already exists`);
     this.fields.set(id, fields);
 
     // const queriesToRecompute = [];

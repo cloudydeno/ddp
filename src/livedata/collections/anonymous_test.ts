@@ -4,7 +4,7 @@ import { Collection } from "../facades.ts";
 import { assertObjectMatch } from "@std/assert/object-match";
 
 Deno.test('AnonymousCollection inserts', () => {
-  const coll = new AnonymousCollection();
+  const coll = new AnonymousCollection(null);
   const api = new Collection(coll.getApi());
 
   assertEquals(api.find().count(), 0);
@@ -15,7 +15,7 @@ Deno.test('AnonymousCollection inserts', () => {
 })
 
 Deno.test('AnonymousCollection removes', () => {
-  const coll = new AnonymousCollection();
+  const coll = new AnonymousCollection(null);
   const api = new Collection(coll.getApi<{
     _id: string;
     hello: string;
@@ -33,7 +33,7 @@ Deno.test('AnonymousCollection removes', () => {
 })
 
 Deno.test('AnonymousCollection updates', () => {
-  const coll = new AnonymousCollection();
+  const coll = new AnonymousCollection(null);
   const api = new Collection(coll.getApi<{
     _id: string;
     hello: string;

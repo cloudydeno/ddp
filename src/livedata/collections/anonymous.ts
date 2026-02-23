@@ -6,19 +6,33 @@ import { Cursor } from "../facades.ts";
 import { Random } from "lib/random.ts";
 
 export class AnonymousCollection extends LiveCollection {
+  constructor(
+    public readonly collectionName: string | null,
+  ) {
+    super();
+  }
+
   getApi<T extends HasId>(): AnonymousCollectionApi<T> {
-    return new AnonymousCollectionApi<T>(this);
+    return new AnonymousCollectionApi<T>(this, this.collectionName);
   }
 }
 
 export class AnonymousCollectionApi<T extends HasId> extends LiveCollectionApi<T> implements SyncCollection<T> {
-  get collectionName(): string | null {
-    return null;
+  constructor(
+    liveColl: AnonymousCollection,
+    public readonly collectionName: string | null,
+  ) {
+    super(liveColl);
+    // TODO: register simulations of the update methods into the client
+  }
+
+  protected makeNewId(): string {
+    return new Random().id();
   }
 
   insert(doc: T): string {
     let {_id, ...fields} = doc;
-    _id ??= new Random().id();
+    _id ??= this.makeNewId();
     if (typeof _id != 'string') throw new Error(`Only string IDs are accepted`);
     this.liveColl.addDocument(_id, EJSON.clone(fields as EJSONable));
     return _id;
