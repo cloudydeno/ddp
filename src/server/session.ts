@@ -175,13 +175,17 @@ export abstract class DdpSession {
             msg: 'updated',
             methods: [pkt.id],
           }]), err => (console.error('method error:', err), [{
+            msg: 'updated',
+            methods: [pkt.id],
+          }, {
             msg: 'result',
             id: pkt.id,
-            // TODO: server error sanitizing
-            error: {
-              error: err.message,
-              message: err.message,
-            },
+            error: err.isClientSafe
+              ? err
+              : {
+                error: err.message,
+                message: err.message,
+              },
           }]))
           .then(pkt => this.send(pkt))
           .catch(err => console.warn(`WARN: failed to send method response: ${err.message}`))
