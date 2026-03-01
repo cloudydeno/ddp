@@ -3,7 +3,14 @@ import sift from "sift";
 import type { PartialCollectionApi, PartialCursorApi, DocumentFields, FindOpts, HasId, ObserveCallbacks, ObserverHandle } from "../types.ts";
 import { makeReturnDoc } from "../document.ts";
 
+type Selector = string | Record<string,unknown>;
 type FilterFunc = (item: unknown, key?: string | number | undefined, owner?: unknown) => boolean;
+function selectorToFunc(selector: Selector): FilterFunc {
+  if (typeof selector == 'string') {
+    return x => (x as HasId)._id == selector;
+  }
+  return sift.default(selector)
+}
 
 export abstract class LiveCollection {
   public readonly fields: Map<string,DocumentFields> = new Map;
@@ -92,18 +99,18 @@ export class LiveCollectionApi<T extends HasId> implements PartialCollectionApi<
     public readonly liveColl: LiveCollection,
   ) {}
 
-  findOneAsync(selector?: Record<string, unknown>, opts?: FindOpts): Promise<T | null> {
+  findOneAsync(selector?: Selector, opts?: FindOpts): Promise<T | null> {
     return Promise.try(() => this.findOne(selector, opts));
   }
 
-  findOne(selector: Record<string,unknown> = {}, opts: FindOpts = {}): T | null {
-    for (const doc of this.liveColl.findGenerator<T>(sift.default(selector), opts)) {
+  findOne(selector: Selector = {}, opts: FindOpts = {}): T | null {
+    for (const doc of this.liveColl.findGenerator<T>(selectorToFunc(selector), opts)) {
       return doc;
     }
     return null;
   }
 
-  find(selector: Record<string,unknown> = {}, opts?: FindOpts): PartialCursorApi<T> {
+  find(selector: Selector = {}, opts?: FindOpts): PartialCursorApi<T> {
     return new LiveCursor<T>(this, selector, opts ?? {});
   }
 }
@@ -111,10 +118,10 @@ export class LiveCollectionApi<T extends HasId> implements PartialCollectionApi<
 export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterable<T> {
   constructor(
     private readonly coll: LiveCollectionApi<T>,
-    private readonly selector: Record<string,unknown>,
+    private readonly selector: Selector,
     private readonly opts: FindOpts,
   ) {
-    this.filterFunc = sift.default(this.selector);
+    this.filterFunc = selectorToFunc(this.selector);
   }
   private readonly filterFunc: FilterFunc;
 
@@ -137,7 +144,7 @@ export class LiveCursor<T extends HasId> implements PartialCursorApi<T>, Iterabl
     return Array.from(this);
   }
   observe(cbs: ObserveCallbacks<T>): ObserverHandle {
-    const query = new LiveQuery<T>(this.coll, sift.default(this.selector), this.opts, cbs);
+    const query = new LiveQuery<T>(this.coll, this.filterFunc, this.opts, cbs);
     // this.coll.liveColl.addQuery(query);
     return {
       stop: () => {
