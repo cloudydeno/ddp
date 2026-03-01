@@ -220,33 +220,40 @@ export class DdpSocketSession extends DdpSession {
       'network.peer.port': remoteAddr.port,
     } : {}, httpHeaders);
 
+    const inboundPipe = new TransformStream<TracedClientSentPacket,TracedClientSentPacket>();
+    const inboundWriter = inboundPipe.writable.getWriter();
+
     socket.addEventListener('open', () => {
-      // console.log('socket open')
+      console.debug('DDP WebSocket open');
       if (this.encapsulation == 'sockjs') socket.send('o');
     });
-    socket.addEventListener('message', (e) => {
+    socket.addEventListener('message', async (e) => {
       const msgs = this.encapsulation == 'sockjs'
         ? JSON.parse(e.data) as string[]
         : [e.data as string];
       for (const msgText of msgs) {
         const msg = EJSON.parse(msgText) as TracedClientSentPacket;
-        this.handleClientPacket(msg);
+        await inboundWriter.write(msg);
       }
     });
 
-    this.closePromise = new Promise<void>((ok, fail) => {
-      socket.addEventListener('error', (evt: ErrorEventInit) => {
-        const error = evt.error ?? new Error(evt.message || 'Unidentified WebSocket error.');
-        fail(new Error(`DDP WebSocket errored: ${error.message}`));
-        this.closeCtlr.abort(error);
-        console.log("DDP WebSocket errored:", error.message);
-      });
-      socket.addEventListener('close', () => {
-        ok();
-        this.closeCtlr.abort();
-        console.log("DDP WebSocket closed");
-      });
+    socket.addEventListener('error', (evt: ErrorEventInit) => {
+      const error = evt.error ?? new Error(evt.message || 'Unidentified WebSocket error.');
+      this.closeCtlr.abort(error);
+      console.debug("DDP WebSocket errored:", error.message);
+      inboundWriter.abort(error);
     });
+    socket.addEventListener('close', () => {
+      this.closeCtlr.abort();
+      console.debug("DDP WebSocket closed");
+      inboundWriter.close();
+    });
+
+    this.closePromise = (async () => {
+      for await (const inboundMsg of inboundPipe.readable) {
+        await this.handleClientPacket(inboundMsg);
+      }
+    })();
   }
 
   send(pkts: ServerSentPacket[]) {
