@@ -9,6 +9,7 @@ export abstract class LiveCollection {
   public readonly fields: Map<string,DocumentFields> = new Map;
 
   addDocument(id: string, fields: DocumentFields): void {
+    if (!id) throw new Error(`BUG: tried adding document with falsey id`);
     if (this.fields.has(id)) throw new Error(`BUG: ID "${id}" already exists`);
     this.fields.set(id, fields);
 
@@ -40,6 +41,7 @@ export abstract class LiveCollection {
     // this._observeQueue.drain();
   }
   changeDocument(id: string, fields: DocumentFields, cleared: Array<string>): void {
+    if (!id) throw new Error(`BUG: tried changing document with falsey id`);
     this.fields.set(id, {
       ...this.fields.get(id),
       ...(fields ?? {}),

@@ -22,9 +22,10 @@ export function makeReturnDoc<T extends HasId>(_id: string, original: T, opts: F
       if (pair[0] in fieldsSpec) continue;
       subset[pair[0] as keyof T] = structuredClone(pair[1]) as T[keyof T];
     }
-    if (!('_id' in fieldsSpec)) {
-      subset['_id'] = _id;
-    }
+  }
+  // only way to not get _id is specifically rejecting it
+  if (!('_id' in fieldsSpec) || fieldsSpec['_id']) {
+    subset['_id'] = _id;
   }
   return subset as T; // TODO: this is a lie once fields is supplied
 }

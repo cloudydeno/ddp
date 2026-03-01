@@ -115,6 +115,9 @@ export class AnonymousCollectionApi<T extends HasId> extends LiveCollectionApi<T
         const {_id, ...fields} = mutable as T;
         const keysBefore = new Set(Object.keys(original));
         const keysAfter = new Set(Object.keys(mutable));
+        if (_id !== original._id) {
+          throw new Error(`Performing an update on the immutable field '_id' is not allowed`);
+        }
         this.liveColl.changeDocument(_id, fields as DocumentFields, [...keysBefore.difference(keysAfter)]);
         numberAffected++;
       }
