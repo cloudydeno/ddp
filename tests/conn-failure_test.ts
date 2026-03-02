@@ -25,12 +25,15 @@ Deno.test('connection eof reconnect', {
 }, async () => {
 
   using client = DDP.connect('http://localhost:8000', {
+    // Wrap the dial logic to force a shutdown after 1 second
     dialerFunc: async (opts) => {
       const func = makeTestDialerFunc(new DdpInterface());
-      const session = await func(opts);
-      setTimeout(() => session.serverSession.close(), 1000);
+      const session = await func({ ...opts,
+        signal: AbortSignal.timeout(1000),
+      });
       return session;
     },
+    // Configure client to always wait 1 second before retrying
     reconnectDelayMillis: 1000,
   });
 

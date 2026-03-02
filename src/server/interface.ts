@@ -32,7 +32,7 @@ export class DdpInterface {
     this.defaultPubs.push({ label, handler });
   }
 
-  registerSocket(socket: DdpSession): void {
+  async registerSocket(socket: DdpSession): Promise<void> {
     // this.openSockets.add(socket);
     for (const callback of this.connectionCbs) {
       callback(socket);
@@ -45,7 +45,12 @@ export class DdpInterface {
     //     this.openSockets.delete(socket);
     //   });
     for (const pub of this.defaultPubs) {
-      socket.startDefaultSub(pub.label, pub.handler);
+      await socket.startDefaultSub(pub.label, pub.handler);
+    }
+  }
+  async startDefaultPubs(socket: DdpSession): Promise<void> {
+    for (const pub of this.defaultPubs) {
+      await socket.startDefaultSub(pub.label, pub.handler);
     }
   }
 

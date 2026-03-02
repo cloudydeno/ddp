@@ -48,7 +48,7 @@ const client = new DdpConnection('https://my-app.com', {
 });
 ```
 
-The connection will start up in the backend due to `autoConnect: true`.
+The connection will start up in the background due to `autoConnect: true`.
 You don't have to wait for it; your first calls will transparently wait instead.
 
 If you want to wait for a healthy connection you can try a snippet like this:

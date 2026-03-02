@@ -34,33 +34,30 @@ export interface MeteorError {
 
 export type DocumentFields = Record<string, EJSONableProperty>;
 
-export type ServerSentDocumentPacket = {
+export type DocumentChange = {
   msg: 'added';
-  collection: string;
   id: string;
   fields?: DocumentFields;
 } | {
   msg: 'changed';
-  collection: string;
   id: string;
   fields?: DocumentFields;
   cleared?: Array<string>;
 } | {
   msg: 'removed';
-  collection: string;
   id: string;
 } | {
   msg: 'addedBefore';
-  collection: string;
   id: string;
   fields?: DocumentFields;
   before: string | null;
 } | {
   msg: 'movedBefore';
-  collection: string;
   id: string;
   before: string | null;
 };
+
+export type ServerSentDocumentPacket = DocumentChange & { collection: string; };
 
 export type ServerSentSubscriptionPacket = {
   msg: 'ready';

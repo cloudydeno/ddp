@@ -5,7 +5,7 @@ import { RandomStream } from "lib/random.ts";
 import type { ServerSentPacket } from "lib/types.ts";
 import type { DdpInterface } from "./interface.ts";
 import { PresentedCollection } from "./publishing.ts";
-import type { OutboundSubscription, PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
+import type { PublicationHandler, PublishStream, TracedClientSentPacket } from "./types.ts";
 import { DdpSessionSubscription } from "./subscription.ts";
 import { LiveVariable } from "lib/live-variable.ts";
 
@@ -26,7 +26,7 @@ const BaggageGetter: TextMapGetter<Record<string, string>> = {
  */
 export abstract class DdpSession {
 
-  public readonly collections: Map<string, PresentedCollection> = new Map;
+  public collections: Map<string, PresentedCollection> = new Map;
   public getCollection(collection: string): PresentedCollection {
     let match = this.collections.get(collection);
     if (!match) {
@@ -68,28 +68,123 @@ export abstract class DdpSession {
   }
   // TODO: this needs to rerun subs.
   // https://github.com/meteor/meteor/blob/8eb67c1795f41bc6947c895ec9d49f4fc1de9c24/packages/ddp-server/livedata_server.js#L662
-  setUserId(userId: string | null): void {
+  async setUserId(userId: string | null): Promise<void> {
     if (userId !== null && typeof userId !== "string") throw new Error(
       `setUserId must be called on string or null, not ${typeof userId}`);
-    this.userIdLive.setSnapshot(userId);
+
+    await this.rerunSubsAfterFunc(() => {
+      this.userIdLive.setSnapshot(userId);
+    });
+  }
+
+  _isSending: boolean = true;
+  _dontStartNewUniversalSubs: boolean = false;
+  _pendingReady: Array<string> = [];
+  async rerunSubsAfterFunc(innerFunc: () => void): Promise<void> {
+
+    // TODO: throw if not called from the currently blocking ddp invocation due to unblock()
+
+    // Prevent newly-created universal subscriptions from being added to our
+    // session. They will be found below when we call startUniversalSubs.
+    //
+    // (We don't have to worry about named subscriptions, because we only add
+    // them when we process a 'sub' message. We are currently processing a
+    // 'method' message, and the method did not unblock, because it is illegal
+    // to call setUserId after unblock. Thus we cannot be concurrently adding a
+    // new named subscription).
+    this._dontStartNewUniversalSubs = true;
+
+    // Prevent current subs from updating our collectionViews and call their
+    // stop callbacks. This may yield.
+    for (const sub of this.listAllSubs()) {
+      sub.stopCtlr.abort('Deactivating subscription');
+    }
+
+    // All subs should now be deactivated. Stop sending messages to the client,
+    // save the state of the published collections, and reset to an empty view.
+    for (const collection of this.collections.values()) {
+      collection.startRerun();
+    }
+
+    // Callback to, most likely, update the connection's userId
+    innerFunc();
+
+    // _setUserId is normally called from a Meteor method with
+    // DDP._CurrentMethodInvocation set. But DDP._CurrentMethodInvocation is not
+    // expected to be set inside a publish function, so we temporary unset it.
+    // Inside a publish function DDP._CurrentPublicationInvocation is set.
+
+    // TODO: set up an async resource for current ddp message to replica this blocking
+    //   await DDP._CurrentMethodInvocation.withValue(undefined, async function () {
+    {
+      // Save the old named subs, and reset to having no subscriptions.
+      const oldNamedSubs = this.namedSubs;
+      this.namedSubs = new Map;
+      this.universalSubs = new Set;
+
+      await Promise.all([...oldNamedSubs].map(async ([subscriptionId, sub]) => {
+        const newSub = sub._recreate();
+        this.namedSubs.set(subscriptionId, newSub);
+        // nb: if the handler throws or calls this.error(), it will in fact
+        // immediately send its 'nosub'. This is OK, though.
+        await newSub._start();
+      }));
+
+      // Allow newly-created universal subs to be started on our connection in
+      // parallel with the ones we're spinning up here, and spin up universal
+      // subs.
+      this._dontStartNewUniversalSubs = false;
+      await this.ddpInterface.startDefaultPubs(this);
+    } // , { name: '_setUserId' });
+
+    // Start sending messages again, beginning with the diff from the previous
+    // state of the world to the current state. No yields are allowed during
+    // this diff, so that other changes cannot interleave.
+    this._isSending = true;
+    for (const collection of this.collections.values()) {
+      collection.flushRerun();
+    }
+    if (this._pendingReady.length) {
+      this.send([{
+        msg: 'ready',
+        subs: this._pendingReady,
+      }]);
+      this._pendingReady = [];
+    }
   }
 
   public readonly id: string = Math.random().toString(16).slice(2);
   [Symbol.dispose](): void {
-    this.closeCtlr.abort();
+    this.close();
   }
   close(): void {
-    this.closeCtlr.abort();
+    if (!this.closeCtlr.signal.aborted) {
+      this.closeCtlr.abort();
+    }
   }
   onClose(callback: () => void): void {
     this.closeCtlr.signal.addEventListener('abort', callback);
   }
 
-  public readonly universalSubs: Set<DdpSessionSubscription> = new Set;
-  public readonly namedSubs: Map<string, DdpSessionSubscription> = new Map;
+  public universalSubs: Set<DdpSessionSubscription> = new Set;
+  public namedSubs: Map<string, DdpSessionSubscription> = new Map;
+
+  protected listAllSubs(): Array<DdpSessionSubscription> {
+    return [
+      ...this.universalSubs,
+      ...this.namedSubs.values(),
+    ];
+  }
 
   async startDefaultSub(label: string, handler: PublicationHandler) {
-    const subscription = new DdpSessionSubscription(this, '');
+    if (this._dontStartNewUniversalSubs) return;
+    const subscription = new DdpSessionSubscription(this, {
+      subId: '',
+      pubName: label,
+      startFunc(): Promise<void | PublishStream | PublishStream[]> {
+        return Promise.resolve(handler(subscription, []));
+      },
+    });
     this.universalSubs.add(subscription);
     await subtracer.startActiveSpan(label, {
       kind: SpanKind.SERVER,
@@ -97,10 +192,7 @@ export abstract class DdpSession {
         'rpc.system': 'ddp-publish',
         'rpc.method': label,
       },
-    }, (span) => Promise
-      .resolve(handler(subscription, []))
-      .catch(err => subscription.error(err))
-      .finally(() => span.end()));
+    }, (span) => subscription._start().finally(() => span.end()));
   }
 
   async handleClientPacket(pkt: TracedClientSentPacket) {
@@ -131,8 +223,6 @@ export abstract class DdpSession {
         }]);
         break;
       case 'sub': {
-        const subscription = new DdpSessionSubscription(this, pkt.id);
-        this.namedSubs.set(pkt.id, subscription);
         await subtracer.startActiveSpan(pkt.name, {
           kind: SpanKind.SERVER,
           attributes: {
@@ -140,18 +230,17 @@ export abstract class DdpSession {
             'rpc.method': pkt.name,
             'rpc.ddp.sub_id': pkt.id,
           },
-        }, ctx, (span) => this.ddpInterface
-          .callSubscribe(subscription, pkt.name, pkt.params)
-          .then(result => {
-            if (Array.isArray(result)) {
-              emitToSub(subscription, result);
-            } else if (result) {
-              emitToSub(subscription, [result]);
-            }
-          })
-          // TODO: server error sanitizing
-          .catch(err => subscription.error(err))
-          .finally(() => span.end()));
+        }, ctx, async (span) => {
+          const subscription = new DdpSessionSubscription(this, {
+            subId: pkt.id,
+            pubName: pkt.name,
+            startFunc: (): Promise<void | PublishStream[] | PublishStream> => this.ddpInterface
+              .callSubscribe(subscription, pkt.name, pkt.params),
+          });
+          this.namedSubs.set(pkt.id, subscription);
+          await subscription._start()
+            .finally(() => span.end());
+        });
       } break;
       case 'unsub': {
         const sub = this.namedSubs.get(pkt.id);
@@ -220,7 +309,9 @@ export class DdpSocketSession extends DdpSession {
       'network.peer.port': remoteAddr.port,
     } : {}, httpHeaders);
 
+    /** Pass received packets thru an identity stream to provide sequential input processing. */
     const inboundPipe = new TransformStream<TracedClientSentPacket,TracedClientSentPacket>();
+    /** Handle to add received messages to the input stream. Closed to represent the client going away. */
     const inboundWriter = inboundPipe.writable.getWriter();
 
     socket.addEventListener('open', () => {
@@ -246,7 +337,10 @@ export class DdpSocketSession extends DdpSession {
     socket.addEventListener('close', () => {
       this.closeCtlr.abort();
       console.debug("DDP WebSocket closed");
-      inboundWriter.close();
+      // On error event, close event is called directly after
+      if (!inboundWriter.closed) {
+        inboundWriter.close();
+      }
     });
 
     this.closePromise = (async () => {
@@ -306,42 +400,4 @@ export class DdpStreamSession extends DdpSession {
       await this.sendWriter.write(EJSON.stringify(pkt));
     }
   }
-}
-
-function emitToSub(
-  sub: OutboundSubscription,
-  sources: Array<PublishStream>,
-) {
-  let unreadyCount = sources.length;
-  if (unreadyCount == 0) {
-    sub.ready();
-    return;
-  }
-  sources.map(source => source.pipeTo(new WritableStream({
-    write(packet) {
-      switch (packet.msg) {
-        case 'ready':
-          if (--unreadyCount == 0) {
-            sub.ready();
-          }
-          break;
-        case 'nosub':
-          if (packet.error) {
-            throw packet.error;
-          } else {
-            sub.stop();
-          }
-          break;
-        case 'added':
-          sub.added(packet.collection, packet.id, packet.fields ?? {});
-          break;
-        case 'changed':
-          sub.changed(packet.collection, packet.id, packet.fields ?? {});
-          break;
-        case 'removed':
-          sub.removed(packet.collection, packet.id);
-          break;
-      }
-    },
-  })));
 }
