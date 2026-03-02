@@ -1,4 +1,6 @@
-import { EJSON, type EJSONable } from "@cloudydeno/ejson";
+import { EJSON, type EJSONableProperty, type EJSONable } from "@cloudydeno/ejson";
+// import { updateToPredicate } from "jsonmongoquery";
+import sift from "sift";
 
 import type { SyncCollection, HasId, UpdateOpts, UpsertOpts, UpsertResult, DocumentFields } from "../types.ts";
 import { LiveCollection, LiveCollectionApi } from "./live.ts";
@@ -45,73 +47,14 @@ export class AnonymousCollectionApi<T extends HasId> extends LiveCollectionApi<T
     if (someOps && !allOps) throw new Error(`Mixture of update ops and fields`);
     if (!someOps) throw new Error(`TODO: update with only fields`);
 
+    console.log('Running update modifier', modifier);
+    const updateFunc = updateToPredicate(modifier) as (doc: EJSONable) => boolean;
+
     let numberAffected = 0;
     for (const original of new Cursor(this.find(selector))) {
-      let isAffected = false;
-      let mutable = structuredClone(original) as EJSONable;
-
-      for (const [opName, opArg] of Object.entries(modifier)) {
-        switch (opName) {
-
-          case '$set': {
-            const setMap = opArg as Record<string,EJSONable>;
-            if (Object.keys(setMap).some(x => x.includes('.'))) throw new Error(`TODO: no deep keys yet`);
-            mutable = {...mutable, ...setMap};
-            isAffected = true;
-          } break;
-
-          // https://www.mongodb.com/docs/manual/reference/operator/update/addToSet/
-          case '$addToSet': {
-            const fieldMap = opArg as Record<string,EJSONable>;
-            for (const [field, value] of Object.entries(fieldMap)) {
-              if (Object.keys(value ?? {}).some(x => x[0] == '$')) throw new Error(`TODO embedded operators`);
-              let docPiece = mutable;
-              const fieldLabels = field.split('.');
-              const listLabel = fieldLabels.pop();
-              if (!listLabel) throw new Error(`no labels in addToSet somehow`);
-              for (const label of fieldLabels) {
-                const piece = docPiece[label] ??= {};
-                if (typeof piece !== 'object') throw new Error(`expected object at "${label}"`);
-                docPiece = piece as EJSONable;
-              }
-              // if (field.includes('.')) throw new Error(`TODO: no deep keys yet: ${field}`);
-              const existingValue = docPiece[listLabel] ??= [];
-              if (!Array.isArray(existingValue)) throw new Error(`addToSet to non-array`);
-              if (!existingValue.includes(value)) {
-                existingValue.push(value);
-                isAffected = true;
-              }
-            }
-          } break;
-
-          // https://www.mongodb.com/docs/manual/reference/operator/update/addToSet/
-          case '$push': {
-            const fieldMap = opArg as Record<string,EJSONable>;
-            for (const [field, value] of Object.entries(fieldMap)) {
-              if (Object.keys(value ?? {}).some(x => x[0] == '$')) throw new Error(`TODO embedded operators`);
-              let docPiece = mutable;
-              const fieldLabels = field.split('.');
-              const listLabel = fieldLabels.pop();
-              if (!listLabel) throw new Error(`no labels in push somehow`);
-              for (const label of fieldLabels) {
-                const piece = docPiece[label] ??= {};
-                if (typeof piece !== 'object') throw new Error(`expected object at "${label}"`);
-                docPiece = piece as EJSONable;
-              }
-              // if (field.includes('.')) throw new Error(`TODO: no deep keys yet: ${field}`);
-              const existingValue = docPiece[listLabel] ??= [];
-              if (!Array.isArray(existingValue)) throw new Error(`push to non-array`);
-              existingValue.push(value);
-              isAffected = true;
-            }
-          } break;
-
-          default:
-            throw new Error(`TODO: Unimplemented update operator "${opName}"`);
-        }
-      }
-
-      if (isAffected) {
+      const mutable = structuredClone(original) as EJSONable;
+      // console.log([mutable['$addToSet']?.['services.resume.loginTokens'], Object.prototype.toString.call(mutable['$addToSet']?.['services.resume.loginTokens'])])
+      if (updateFunc(mutable)) {
         const {_id, ...fields} = mutable as T;
         const keysBefore = new Set(Object.keys(original));
         const keysAfter = new Set(Object.keys(mutable));
@@ -138,4 +81,115 @@ export class AnonymousCollectionApi<T extends HasId> extends LiveCollectionApi<T
     }
     return numberAffected;
   }
+}
+
+
+function updateToPredicate(modifier: Record<string,unknown>): (mutable: EJSONable) => boolean {
+  return (mutable) => {
+    let isAffected = false;
+
+    function getAtNestedKey<Tval>(key: string): Tval | undefined {
+      const parts = key.split('.');
+      const lastPart = parts.pop()!;
+      let ref: EJSONable = mutable;
+      for (const part of parts) {
+        ref = ref[part] as EJSONable;
+        if (!ref) return undefined;
+        if (typeof ref !== 'object') throw new Error(`expected object at "${part}"`);
+      }
+      return ref[lastPart] as Tval;
+    }
+    function setAtNestedKey<Tval>(key: string, newVal: Tval | undefined): void {
+      if (Object.keys(newVal ?? {}).some(x => x[0] == '$')) throw new Error(`TODO embedded operators`);
+      const parts = key.split('.');
+      const lastPart = parts.pop();
+      if (!lastPart) throw new Error(`no labels in addTosetAtNestedKeySet somehow`);
+      let ref: EJSONable = mutable;
+      for (const part of parts) {
+        ref[part] ??= {};
+        ref = ref[part] as EJSONable;
+        if (typeof ref !== 'object') throw new Error(`expected object at "${part}"`);
+      }
+      ref[lastPart] = newVal as EJSONableProperty;
+    }
+
+    for (const [opName, opArg] of Object.entries(modifier)) {
+      switch (opName) {
+
+        case '$set': {
+          const setMap = opArg as Record<string,EJSONable>;
+          for (const field of Object.entries(setMap)) {
+            setAtNestedKey(field[0], field[1]);
+            isAffected = true;
+          }
+        } break;
+
+        case '$inc': {
+          const fieldMap = opArg as Record<string,EJSONable>;
+          if (Object.keys(fieldMap).some(x => x.includes('.'))) throw new Error(`TODO: no deep keys yet`);
+          for (const field of Object.entries(fieldMap)) {
+            const existVal = getAtNestedKey<number>(field[0]);
+            if (typeof existVal != 'number') throw new Error(`Can't $inc on ${typeof existVal} value`);
+            if (typeof field[1] != 'number') throw new Error(`Can't $inc with ${typeof field[1]} value`);
+            setAtNestedKey(field[0], existVal + field[1]);
+            isAffected = true;
+          }
+        } break;
+
+        // https://www.mongodb.com/docs/manual/reference/operator/update/addToSet/
+        case '$addToSet': {
+          const fieldMap = opArg as Record<string,EJSONable>;
+          for (const [field, value] of Object.entries(fieldMap)) {
+            if (Object.keys(value ?? {}).some(x => x[0] == '$')) throw new Error(`TODO embedded operators`);
+            let list = getAtNestedKey<Array<unknown>>(field);
+            if (!list) {
+              setAtNestedKey(field, list = []);
+            }
+            if (!Array.isArray(list)) throw new Error(`addToSet to non-array`);
+            if (!list.some(item => EJSON.equals(item as EJSON, value))) {
+              list.push(value);
+              isAffected = true;
+            }
+          }
+        } break;
+
+        // https://www.mongodb.com/docs/manual/reference/operator/update/addToSet/
+        case '$push': {
+          const fieldMap = opArg as Record<string,EJSONable>;
+          for (const [field, value] of Object.entries(fieldMap)) {
+            if (Object.keys(value ?? {}).some(x => x[0] == '$')) throw new Error(`TODO embedded operators`);
+            let list = getAtNestedKey<Array<unknown>>(field);
+            if (!list) {
+              setAtNestedKey(field, list = []);
+            }
+            if (!Array.isArray(list)) throw new Error(`push to non-array`);
+            list.push(value);
+            isAffected = true;
+          }
+        } break;
+
+        // https://www.mongodb.com/docs/manual/reference/operator/update/addToSet/
+        case '$pull': {
+          const fieldMap = opArg as Record<string,EJSONable>;
+          for (const [field, value] of Object.entries(fieldMap)) {
+            if (Object.keys(value).length == 0) continue;
+            const condition = (Object.keys(value ?? {}).some(x => x[0] == '$'))
+              ? sift.default(value)
+              : (item: unknown) => !EJSON.equals(item as EJSON, value);
+            const list = getAtNestedKey<Array<unknown>>(field) ?? [];
+            if (!Array.isArray(list)) throw new Error(`pull to non-array`);
+            const filtered = list.filter(item => !condition(item));
+            if (filtered.length != list.length) {
+              setAtNestedKey(field, filtered)
+              isAffected = true;
+            }
+          }
+        } break;
+
+        default:
+          throw new Error(`TODO: Unimplemented update operator "${opName}"`);
+      }
+    }
+    return isAffected;
+  };
 }
